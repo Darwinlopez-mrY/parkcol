@@ -11,7 +11,16 @@ const PORT = process.env.PORT || 5000;
 
 // Middlewares
 app.use(helmet());
-app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
+const corsOptions = {
+  origin: [
+    'http://localhost:3000',
+    'https://parkcol.vercel.app'
+  ],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 
