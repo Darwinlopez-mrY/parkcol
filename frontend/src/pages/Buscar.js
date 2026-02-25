@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import API from '../services/api';
 import Mapa from '../components/Mapa';
@@ -36,13 +36,8 @@ const Buscar = () => {
         'Neiva': [2.9273, -75.2819]
     };
 
-    // Efectos
-    useEffect(() => {
-        buscarParqueaderos();
-    }, [busqueda, ciudad]);
-
     // Funciones de búsqueda
-    const buscarParqueaderos = async () => {
+    const buscarParqueaderos = useCallback(async () => {
         setCargando(true);
         try {
             const params = new URLSearchParams();
@@ -51,14 +46,18 @@ const Buscar = () => {
 
             const url = params.toString() ? `/parqueaderos?${params.toString()}` : '/parqueaderos';
             const response = await API.get(url);
-            
             setResultados(response.data);
         } catch (error) {
             console.error('Error al buscar parqueaderos:', error);
         } finally {
             setCargando(false);
         }
-    };
+    }, [ciudad, busqueda]);
+
+    // Efectos
+    useEffect(() => {
+        buscarParqueaderos();
+    }, [buscarParqueaderos]);
 
     const buscarCercaDeMi = () => {
         setCargando(true);
@@ -179,7 +178,7 @@ const Buscar = () => {
                     parqueaderos={resultados}
                     centro={centroMapa}
                     mostrarUbicacion={!!ubicacionUsuario}
-                    ciudad={ciudad}  // Pasamos la ciudad para centrar el mapa
+                    ciudad={ciudad}
                 />
             </div>
         );
@@ -243,7 +242,7 @@ const Buscar = () => {
     );
 };
 
-// Estilos (se mantienen igual)
+// Estilos
 const styles = {
     container: {
         maxWidth: '1200px',
