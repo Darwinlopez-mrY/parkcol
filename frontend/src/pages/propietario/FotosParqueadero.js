@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import API from '../../services/api';
 import SubirFotos from '../../components/SubirFotos';
@@ -9,11 +9,7 @@ const FotosParqueadero = () => {
     const [parqueadero, setParqueadero] = useState(null);
     const [cargando, setCargando] = useState(true);
 
-    useEffect(() => {
-        cargarParqueadero();
-    }, [id]);
-
-    const cargarParqueadero = async () => {
+    const cargarParqueadero = useCallback(async () => {
         try {
             const response = await API.get(`/parqueaderos/${id}`);
             setParqueadero(response.data);
@@ -22,7 +18,11 @@ const FotosParqueadero = () => {
         } finally {
             setCargando(false);
         }
-    };
+    }, [id]);
+
+    useEffect(() => {
+        cargarParqueadero();
+    }, [cargarParqueadero]);
 
     const handleFotosActualizadas = (nuevasFotos) => {
         setParqueadero({ ...parqueadero, fotos: nuevasFotos });
@@ -36,7 +36,6 @@ const FotosParqueadero = () => {
                 data: { fotoUrl }
             });
             
-            // Actualizar lista de fotos
             const nuevasFotos = parqueadero.fotos.filter(f => f !== fotoUrl);
             setParqueadero({ ...parqueadero, fotos: nuevasFotos });
         } catch (error) {
