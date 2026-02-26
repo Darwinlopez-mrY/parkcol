@@ -25,7 +25,7 @@ export const AuthProvider = ({ children }) => {
         try {
             const response = await registrarUsuario(datos);
             localStorage.setItem('token', response.data.token);
-            localStorage.setItem('usuario', JSON.stringify(response.data.usuario)); // 👈 NUEVO
+            localStorage.setItem('usuario', JSON.stringify(response.data.usuario));
             setUsuario(response.data.usuario);
             return { success: true };
         } catch (error) {
@@ -43,7 +43,7 @@ export const AuthProvider = ({ children }) => {
         try {
             const response = await loginUsuario(datos);
             localStorage.setItem('token', response.data.token);
-            localStorage.setItem('usuario', JSON.stringify(response.data.usuario)); // 👈 NUEVO
+            localStorage.setItem('usuario', JSON.stringify(response.data.usuario));
             setUsuario(response.data.usuario);
             return { success: true };
         } catch (error) {
@@ -57,7 +57,7 @@ export const AuthProvider = ({ children }) => {
     // Logout
     const logout = () => {
         localStorage.removeItem('token');
-        localStorage.removeItem('usuario'); // 👈 NUEVO
+        localStorage.removeItem('usuario');
         setUsuario(null);
     };
 
