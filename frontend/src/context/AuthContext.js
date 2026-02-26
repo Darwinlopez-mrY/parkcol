@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useState, useContext, useEffect } from 'react';
 import { loginUsuario, registrarUsuario } from '../services/api';
 
 const AuthContext = createContext();
@@ -10,6 +10,14 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
+    // Recuperar usuario del localStorage al iniciar
+    useEffect(() => {
+        const usuarioGuardado = localStorage.getItem('usuario');
+        if (usuarioGuardado) {
+            setUsuario(JSON.parse(usuarioGuardado));
+        }
+    }, []);
+
     // Registrar
     const registro = async (datos) => {
         setLoading(true);
@@ -17,6 +25,7 @@ export const AuthProvider = ({ children }) => {
         try {
             const response = await registrarUsuario(datos);
             localStorage.setItem('token', response.data.token);
+            localStorage.setItem('usuario', JSON.stringify(response.data.usuario)); // 👈 NUEVO
             setUsuario(response.data.usuario);
             return { success: true };
         } catch (error) {
@@ -34,6 +43,7 @@ export const AuthProvider = ({ children }) => {
         try {
             const response = await loginUsuario(datos);
             localStorage.setItem('token', response.data.token);
+            localStorage.setItem('usuario', JSON.stringify(response.data.usuario)); // 👈 NUEVO
             setUsuario(response.data.usuario);
             return { success: true };
         } catch (error) {
@@ -47,6 +57,7 @@ export const AuthProvider = ({ children }) => {
     // Logout
     const logout = () => {
         localStorage.removeItem('token');
+        localStorage.removeItem('usuario'); // 👈 NUEVO
         setUsuario(null);
     };
 

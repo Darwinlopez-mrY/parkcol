@@ -144,12 +144,28 @@ const Mapa = ({ parqueaderos, centro, zoom = 13, mostrarUbicacion = false, ciuda
             {/* Mostrar parqueaderos */}
             {parqueaderos?.map((p) => (
                 <Marker
-                    key={p.id}
+                    key={p._id || p.id}
                     position={[p.lat || 4.60971, p.lng || -74.08175]}
                     icon={createColoredIcon(getMarkerColor(p.disponible, p.espacios))}
                 >
                     <Popup>
                         <div style={{ minWidth: '220px', fontFamily: 'Arial' }}>
+                            {/* 👇 NUEVO: Mostrar primera foto si existe */}
+                            {p.fotos?.length > 0 && (
+                                <img 
+                                    src={p.fotos[0]} 
+                                    alt={p.nombre}
+                                    style={{
+                                        width: '100%',
+                                        height: '120px',
+                                        objectFit: 'cover',
+                                        borderRadius: '5px',
+                                        marginBottom: '10px',
+                                        boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                                    }}
+                                />
+                            )}
+                            
                             <h3 style={{ 
                                 margin: '0 0 5px 0', 
                                 color: '#2C3E50',
@@ -194,7 +210,7 @@ const Mapa = ({ parqueaderos, centro, zoom = 13, mostrarUbicacion = false, ciuda
                                 paddingTop: '10px'
                             }}>
                                 <button
-                                    onClick={() => window.location.href = `/parqueadero/${p.id}`}
+                                    onClick={() => window.location.href = `/parqueadero/${p._id || p.id}`}
                                     style={{
                                         flex: 1,
                                         backgroundColor: '#FF7E5F',

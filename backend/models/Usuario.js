@@ -6,11 +6,19 @@ const UsuarioSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     telefono: { type: String, required: true },
-    rol: { type: String, default: 'cliente' },
-    fecha_registro: { type: Date, default: Date.now }
+    rol: { 
+        type: String, 
+        enum: ['cliente', 'propietario', 'admin'], 
+        default: 'cliente' 
+    },
+    fecha_registro: { type: Date, default: Date.now },
+    misParqueaderos: [{ 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'Parqueadero' 
+    }]
 });
 
-// Middleware para encriptar contraseña - CORREGIDO
+// Middleware para encriptar contraseña
 UsuarioSchema.pre('save', function(next) {
     if (!this.isModified('password')) return next();
     

@@ -21,6 +21,11 @@ const Header = () => {
                 <nav style={styles.nav}>
                     {usuario ? (
                         <>
+                            {usuario.rol === 'propietario' && (
+                                <Link to="/propietario" style={styles.link}>
+                                    🏢 Mi negocio
+                                </Link>
+                            )}
                             <span style={styles.userName}>👤 {usuario.nombre}</span>
                             <button onClick={handleLogout} style={styles.logoutBtn}>
                                 Cerrar sesión

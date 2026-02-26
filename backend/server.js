@@ -37,8 +37,11 @@ mongoose.connect(process.env.MONGODB_URI)
     .catch(err => console.error('❌ Error:', err.message));
 
 // Rutas
+app.use('/api/propietario', require('./routes/propietario'));
 app.use('/api/usuarios', require('./routes/usuarios'));
 app.use('/api/parqueaderos', require('./routes/parqueaderos'));
+app.use('/api/upload',
+require('./routes/upload'));
 
 app.get('/', (req, res) => {
     res.send('🚗 API de ParkCol funcionando');
