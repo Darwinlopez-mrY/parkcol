@@ -10,6 +10,25 @@ const Inicio = () => {
     const [recomendados, setRecomendados] = useState([]);
     const [cargando, setCargando] = useState(true);
 
+    // Mapa de imágenes para cada ciudad
+    const imagenesCiudades = {
+        'Bogotá': '/images/ciudades/bogota.jpg',
+        'Medellín': '/images/ciudades/medellin.jpg',
+        'Cali': '/images/ciudades/cali.jpg',
+        'Barranquilla': '/images/ciudades/barranquilla.jpg',
+        'Cartagena': '/images/ciudades/cartagena.jpg',
+        'Bucaramanga': '/images/ciudades/bucaramanga.jpg',
+        'Pereira': '/images/ciudades/pereira.jpg',
+        'Manizales': '/images/ciudades/manizales.jpg',
+        'Cúcuta': '/images/ciudades/cucuta.jpg',
+        'Santa Marta': '/images/ciudades/santamarta.jpg',
+        'Ibagué': '/images/ciudades/ibague.jpg',
+        'Villavicencio': '/images/ciudades/villavicencio.jpg',
+        'Pasto': '/images/ciudades/pasto.jpg',
+        'Montería': '/images/ciudades/monteria.jpg',
+        'Neiva': '/images/ciudades/neiva.jpg'
+    };
+
     // Cargar datos al iniciar
     useEffect(() => {
         cargarDatosInicio();
@@ -53,28 +72,6 @@ const Inicio = () => {
         }
     };
 
-    // Función para obtener el ícono de la ciudad
-    const getIconoCiudad = (nombre) => {
-        const iconos = {
-            'Bogotá': '🏙️',
-            'Medellín': '🌆',
-            'Cali': '🌇',
-            'Barranquilla': '⚓',
-            'Cartagena': '🌊',
-            'Bucaramanga': '🏔️',
-            'Pereira': '☕',
-            'Manizales': '🏞️',
-            'Cúcuta': '🌄',
-            'Santa Marta': '🏖️',
-            'Ibagué': '🎸',
-            'Villavicencio': '🐎',
-            'Pasto': '🎭',
-            'Montería': '🐂',
-            'Neiva': '🏜️'
-        };
-        return iconos[nombre] || '🏙️';
-    };
-
     // Función para obtener color de disponibilidad
     const getDisponibilidadColor = (disponible, espacios) => {
         if (!disponible) return { color: '#F44336', texto: '🔴 Lleno' };
@@ -84,46 +81,49 @@ const Inicio = () => {
 
     return (
         <div style={styles.container}>
-            {/* Hero Section */}
+            {/* Hero Section con fondo de imagen */}
             <section style={styles.hero}>
-                <h1 style={styles.title}>Encuentra parqueadero en segundos</h1>
-                <p style={styles.subtitle}>En las principales ciudades de Colombia</p>
+                <div style={styles.heroOverlay}></div>
+                <div style={styles.heroContent}>
+                    <h1 style={styles.title}>Encuentra parqueadero en segundos</h1>
+                    <p style={styles.subtitle}>En las principales ciudades de Colombia</p>
 
-                {/* Barra de búsqueda */}
-                <form onSubmit={handleBuscar} style={styles.searchForm}>
-                    <select 
-                        value={ciudad} 
-                        onChange={(e) => setCiudad(e.target.value)}
-                        style={styles.citySelect}
+                    {/* Barra de búsqueda */}
+                    <form onSubmit={handleBuscar} style={styles.searchForm}>
+                        <select 
+                            value={ciudad} 
+                            onChange={(e) => setCiudad(e.target.value)}
+                            style={styles.citySelect}
+                        >
+                            <option value="">Todas las ciudades</option>
+                            {ciudadesPopulares.map(c => (
+                                <option key={c.nombre} value={c.nombre}>
+                                    {c.nombre} ({c.cantidad} parq.)
+                                </option>
+                            ))}
+                        </select>
+                        <input
+                            type="text"
+                            placeholder="Barrio o dirección..."
+                            value={busqueda}
+                            onChange={(e) => setBusqueda(e.target.value)}
+                            style={styles.searchInput}
+                        />
+                        <button type="submit" style={styles.searchButton}>
+                            🔍 Buscar
+                        </button>
+                    </form>
+
+                    <button 
+                        style={styles.locationButton}
+                        onClick={() => navigate('/buscar?cerca=mi')}
                     >
-                        <option value="">Todas las ciudades</option>
-                        {ciudadesPopulares.map(c => (
-                            <option key={c.nombre} value={c.nombre}>
-                                {c.nombre} ({c.cantidad} parq.)
-                            </option>
-                        ))}
-                    </select>
-                    <input
-                        type="text"
-                        placeholder="Barrio o dirección..."
-                        value={busqueda}
-                        onChange={(e) => setBusqueda(e.target.value)}
-                        style={styles.searchInput}
-                    />
-                    <button type="submit" style={styles.searchButton}>
-                        🔍 Buscar
+                        📍 Usar mi ubicación actual
                     </button>
-                </form>
-
-                <button 
-                    style={styles.locationButton}
-                    onClick={() => navigate('/buscar?cerca=mi')}
-                >
-                    📍 Usar mi ubicación actual
-                </button>
+                </div>
             </section>
 
-            {/* Ciudades populares */}
+            {/* Ciudades populares con imágenes */}
             <section style={styles.section}>
                 <h2 style={styles.sectionTitle}>Explora por ciudad</h2>
                 {cargando ? (
@@ -136,13 +136,23 @@ const Inicio = () => {
                                 style={styles.cityCard}
                                 onClick={() => navigate(`/buscar?ciudad=${ciudad.nombre}`)}
                             >
-                                <span style={styles.cityIcon}>
-                                    {getIconoCiudad(ciudad.nombre)}
-                                </span>
-                                <h3 style={styles.cityName}>{ciudad.nombre}</h3>
-                                <p style={styles.cityCount}>
-                                    {ciudad.cantidad} parqueadero{ciudad.cantidad !== 1 ? 's' : ''}
-                                </p>
+                                <div style={styles.imageContainer}>
+                                    <img 
+                                        src={imagenesCiudades[ciudad.nombre]} 
+                                        alt={ciudad.nombre}
+                                        style={styles.cityImage}
+                                        onError={(e) => {
+                                            e.target.onerror = null;
+                                            e.target.src = '/images/ciudades/default.jpg';
+                                        }}
+                                    />
+                                    <div style={styles.cityOverlay}>
+                                        <h3 style={styles.cityName}>{ciudad.nombre}</h3>
+                                        <p style={styles.cityCount}>
+                                            {ciudad.cantidad} parq.
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -182,27 +192,36 @@ const Inicio = () => {
                             const disponibilidad = getDisponibilidadColor(p.disponible, p.espacios);
                             return (
                                 <div key={p._id || i} style={styles.card}>
-                                    <div style={styles.cardHeader}>
-                                        <span style={{
-                                            ...styles.available,
-                                            backgroundColor: disponibilidad.color
-                                        }}>
-                                            {disponibilidad.texto}
-                                        </span>
-                                    </div>
-                                    <h3 style={styles.cardTitle}>{p.nombre}</h3>
-                                    <div style={styles.rating}>
-                                        ⭐ {p.rating} ({p.reseñas} reseñas)
-                                    </div>
-                                    <p style={styles.cardAddress}>📍 {p.ciudad}</p>
-                                    <div style={styles.cardFooter}>
-                                        <span style={styles.price}>💰 ${p.precio}/h</span>
-                                        <button 
-                                            style={styles.viewButton}
-                                            onClick={() => navigate(`/parqueadero/${p._id}`)}
-                                        >
-                                            Ver detalles
-                                        </button>
+                                    {p.fotos?.length > 0 && (
+                                        <img 
+                                            src={p.fotos[0]} 
+                                            alt={p.nombre}
+                                            style={styles.cardImage}
+                                        />
+                                    )}
+                                    <div style={styles.cardContent}>
+                                        <div style={styles.cardHeader}>
+                                            <span style={{
+                                                ...styles.available,
+                                                backgroundColor: disponibilidad.color
+                                            }}>
+                                                {disponibilidad.texto}
+                                            </span>
+                                        </div>
+                                        <h3 style={styles.cardTitle}>{p.nombre}</h3>
+                                        <div style={styles.rating}>
+                                            ⭐ {p.rating} ({p.reseñas} reseñas)
+                                        </div>
+                                        <p style={styles.cardAddress}>📍 {p.ciudad}</p>
+                                        <div style={styles.cardFooter}>
+                                            <span style={styles.price}>💰 ${p.precio}/h</span>
+                                            <button 
+                                                style={styles.viewButton}
+                                                onClick={() => navigate(`/parqueadero/${p._id}`)}
+                                            >
+                                                Ver detalles
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             );
@@ -220,28 +239,58 @@ const styles = {
         margin: '0 auto',
         padding: '20px'
     },
+    // Hero Section con imagen de fondo
     hero: {
-        backgroundColor: '#FF7E5F',
+        position: 'relative',
         color: 'white',
-        padding: '60px 20px',
+        padding: '80px 20px',
         borderRadius: '10px',
         textAlign: 'center',
-        marginBottom: '40px'
+        marginBottom: '40px',
+        overflow: 'hidden',
+        backgroundImage: 'url("/images/hero-bg.jpg")',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+        minHeight: '400px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    heroOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        zIndex: 1
+    },
+    heroContent: {
+        position: 'relative',
+        zIndex: 2,
+        width: '100%',
+        maxWidth: '800px'
     },
     title: {
-        fontSize: '2.5rem',
-        marginBottom: '10px'
+        fontSize: 'clamp(2rem, 5vw, 3rem)',
+        fontWeight: '800',
+        marginBottom: '10px',
+        textShadow: '2px 2px 4px rgba(0,0,0,0.3)'
     },
     subtitle: {
-        fontSize: '1.2rem',
+        fontSize: 'clamp(1.1rem, 3vw, 1.3rem)',
         marginBottom: '30px',
-        opacity: 0.9
+        opacity: 0.95,
+        textShadow: '1px 1px 2px rgba(0,0,0,0.3)'
     },
     searchForm: {
         display: 'flex',
         maxWidth: '800px',
-        margin: '0 auto 20px',
-        gap: '10px'
+        margin: '20px auto',
+        gap: '10px',
+        position: 'relative',
+        zIndex: 2
     },
     citySelect: {
         width: '200px',
@@ -249,14 +298,18 @@ const styles = {
         fontSize: '1rem',
         border: 'none',
         borderRadius: '5px',
-        backgroundColor: 'white'
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        backdropFilter: 'blur(5px)',
+        cursor: 'pointer'
     },
     searchInput: {
         flex: 1,
         padding: '15px',
         fontSize: '1rem',
         border: 'none',
-        borderRadius: '5px'
+        borderRadius: '5px',
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        backdropFilter: 'blur(5px)'
     },
     searchButton: {
         padding: '15px 30px',
@@ -266,17 +319,27 @@ const styles = {
         borderRadius: '5px',
         cursor: 'pointer',
         fontSize: '1rem',
-        fontWeight: 'bold'
+        fontWeight: 'bold',
+        transition: 'all 0.3s',
+        ':hover': {
+            backgroundColor: '#1A2B3C',
+            transform: 'translateY(-2px)'
+        }
     },
     locationButton: {
         padding: '12px 25px',
-        backgroundColor: 'white',
-        color: '#FF7E5F',
-        border: 'none',
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        color: 'white',
+        border: '2px solid white',
         borderRadius: '5px',
         cursor: 'pointer',
         fontSize: '1rem',
-        fontWeight: 'bold'
+        fontWeight: 'bold',
+        transition: 'all 0.3s',
+        ':hover': {
+            backgroundColor: 'white',
+            color: '#2C3E50'
+        }
     },
     section: {
         marginBottom: '50px'
@@ -294,34 +357,50 @@ const styles = {
     },
     citiesGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
         gap: '20px'
     },
     cityCard: {
-        backgroundColor: '#f5f5f5',
-        padding: '20px',
         borderRadius: '10px',
-        textAlign: 'center',
+        overflow: 'hidden',
         cursor: 'pointer',
         transition: 'transform 0.3s, box-shadow 0.3s',
         ':hover': {
             transform: 'translateY(-5px)',
-            boxShadow: '0 5px 15px rgba(0,0,0,0.1)'
+            boxShadow: '0 5px 15px rgba(0,0,0,0.2)'
+        },
+        ':hover img': {
+            transform: 'scale(1.1)'
         }
     },
-    cityIcon: {
-        fontSize: '3rem',
-        display: 'block',
-        marginBottom: '10px'
+    imageContainer: {
+        position: 'relative',
+        width: '100%',
+        height: '180px',
+        overflow: 'hidden'
+    },
+    cityImage: {
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        transition: 'transform 0.3s'
+    },
+    cityOverlay: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: '15px',
+        background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
+        color: 'white'
     },
     cityName: {
         fontSize: '1.2rem',
-        color: '#2C3E50',
         marginBottom: '5px'
     },
     cityCount: {
-        color: '#FF7E5F',
-        fontSize: '0.9rem'
+        fontSize: '0.9rem',
+        opacity: 0.9
     },
     stepsGrid: {
         display: 'grid',
@@ -360,13 +439,21 @@ const styles = {
     },
     card: {
         backgroundColor: 'white',
-        padding: '20px',
         borderRadius: '10px',
+        overflow: 'hidden',
         boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
         transition: 'transform 0.3s',
         ':hover': {
             transform: 'translateY(-5px)'
         }
+    },
+    cardImage: {
+        width: '100%',
+        height: '180px',
+        objectFit: 'cover'
+    },
+    cardContent: {
+        padding: '20px'
     },
     cardHeader: {
         marginBottom: '10px'

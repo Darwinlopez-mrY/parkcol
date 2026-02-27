@@ -1,43 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import API from '../services/api';
 
 const ParqueaderoDetalle = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { usuario } = useAuth();
     const [parqueadero, setParqueadero] = useState(null);
     const [cargando, setCargando] = useState(true);
 
     useEffect(() => {
-        const cargarParqueadero = async () => {
-            try {
-                const response = await API.get(`/parqueaderos/${id}`);
-                setParqueadero(response.data);
-                setCargando(false);
-            } catch (error) {
-                console.error('Error:', error);
-                setCargando(false);
-            }
-        };
-        
         cargarParqueadero();
     }, [id]);
 
-    if (cargando) {
-        return (
-            <div style={styles.container}>
-                <div style={styles.loading}>Cargando parqueadero...</div>
-            </div>
-        );
-    }
+    const cargarParqueadero = async () => {
+        try {
+            const response = await API.get(`/parqueaderos/${id}`);
+            setParqueadero(response.data);
+        } catch (error) {
+            console.error('Error:', error);
+        } finally {
+            setCargando(false);
+        }
+    };
 
-    if (!parqueadero) {
-        return (
-            <div style={styles.container}>
-                <div style={styles.error}>Parqueadero no encontrado</div>
-            </div>
-        );
-    }
+    if (cargando) return <div style={styles.loading}>Cargando...</div>;
+    if (!parqueadero) return <div style={styles.error}>Parqueadero no encontrado</div>;
 
     return (
         <div style={styles.container}>
@@ -46,82 +35,73 @@ const ParqueaderoDetalle = () => {
                 <button onClick={() => navigate(-1)} style={styles.backButton}>
                     ← Atrás
                 </button>
-                <h1 style={styles.title}>Detalles del parqueadero</h1>
-                <div style={styles.headerActions}>
-                    <button style={styles.iconButton}>❤️</button>
-                    <button style={styles.iconButton}>📤</button>
+                <h1 style={styles.title}>{parqueadero.nombre}</h1>
+                <div style={styles.rating}>
+                    ⭐ {parqueadero.rating} ({parqueadero.reseñas} reseñas)
                 </div>
             </div>
 
-            {/* Galería de fotos */}
-            <div style={styles.galeria}>
-                {parqueadero.fotos.map((foto, i) => (
-                    <div key={i} style={{
-                        ...styles.fotoPlaceholder,
-                        backgroundColor: i === 0 ? '#FF7E5F' : '#FFA07A'
-                    }}>
-                        {i === 0 ? 'Foto principal' : `Foto ${i+1}`}
+            {/* Fotos del parqueadero */}
+            <div style={styles.seccion}>
+                <h2 style={styles.subtitulo}>📸 Fotos</h2>
+                {parqueadero.fotos?.length > 0 ? (
+                    <div style={styles.galeria}>
+                        {parqueadero.fotos.map((foto, index) => (
+                            <img 
+                                key={index}
+                                src={foto}
+                                alt={`${parqueadero.nombre} - Foto ${index + 1}`}
+                                style={styles.foto}
+                                onClick={() => window.open(foto, '_blank')}
+                            />
+                        ))}
                     </div>
-                ))}
+                ) : (
+                    <div style={styles.sinFotos}>
+                        <p>Este parqueadero aún no tiene fotos</p>
+                        {usuario?.rol === 'propietario' && usuario?.id === parqueadero.propietario_id && (
+                            <button 
+                                onClick={() => navigate(`/propietario/fotos/${parqueadero._id}`)}
+                                style={styles.subirFotosBtn}
+                            >
+                                📸 Subir fotos
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
 
-            {/* Información principal */}
-            <div style={styles.infoCard}>
-                <h2 style={styles.nombre}>{parqueadero.nombre}</h2>
-                <div style={styles.rating}>⭐ {parqueadero.calificacion} ({parqueadero.totalResenas} reseñas)</div>
-                
-                <div style={styles.infoGrid}>
-                    <div style={styles.infoItem}>📍 {parqueadero.direccion}</div>
-                    <div style={styles.infoItem}>📞 {parqueadero.telefono}</div>
-                    <div style={styles.infoItem}>🕐 {parqueadero.horario}</div>
+            {/* Información básica */}
+            <div style={styles.infoGrid}>
+                <div style={styles.infoItem}>
+                    <strong>📍 Dirección:</strong> {parqueadero.direccion}
                 </div>
+                <div style={styles.infoItem}>
+                    <strong>📞 Teléfono:</strong> {parqueadero.telefono}
+                </div>
+                <div style={styles.infoItem}>
+                    <strong>🕐 Horario:</strong> {parqueadero.horario}
+                </div>
+                <div style={styles.infoItem}>
+                    <strong>💰 Precio por hora:</strong> ${parqueadero.precio}
+                </div>
+            </div>
 
-                {/* Tarifas */}
-                <h3 style={styles.subtitle}>Tarifas</h3>
-                <div style={styles.tarifas}>
-                    <div style={styles.tarifaCard}>
-                        <span style={styles.tarifaTitulo}>HORA</span>
-                        <span style={styles.tarifaValor}>${parqueadero.precioHora}</span>
-                    </div>
-                    <div style={styles.tarifaCard}>
-                        <span style={styles.tarifaTitulo}>DÍA</span>
-                        <span style={styles.tarifaValor}>${parqueadero.precioDia}</span>
-                    </div>
-                    <div style={styles.tarifaCard}>
-                        <span style={styles.tarifaTitulo}>MES</span>
-                        <span style={styles.tarifaValor}>${parqueadero.precioMes}</span>
-                    </div>
+            {/* Disponibilidad */}
+            <div style={styles.disponibilidad}>
+                <h3>Disponibilidad</h3>
+                <div style={styles.barraProgreso}>
+                    <div style={{
+                        ...styles.barraLlena,
+                        width: `${(parqueadero.espaciosDisponibles || parqueadero.espacios) / (parqueadero.capacidadTotal || 40) * 100}%`,
+                        backgroundColor: parqueadero.disponible ? (parqueadero.espacios < 5 ? '#FF9800' : '#4CAF50') : '#F44336'
+                    }} />
                 </div>
-
-                {/* Servicios */}
-                <h3 style={styles.subtitle}>Servicios</h3>
-                <div style={styles.servicios}>
-                    {parqueadero.servicios.map((s, i) => (
-                        <div key={i} style={styles.servicioItem}>✓ {s}</div>
-                    ))}
-                </div>
-
-                {/* Disponibilidad */}
-                <h3 style={styles.subtitle}>Disponibilidad</h3>
-                <div style={styles.disponibilidad}>
-                    <div style={styles.barraProgreso}>
-                        <div style={{
-                            ...styles.barraLlena,
-                            width: `${(parqueadero.espaciosDisponibles / parqueadero.espaciosTotales) * 100}%`
-                        }} />
-                    </div>
-                    <div style={styles.espacios}>
-                        <span style={{color: '#4CAF50'}}>🟢 {parqueadero.espaciosDisponibles} libres</span>
-                        <span style={{color: '#666'}}>de {parqueadero.espaciosTotales} totales</span>
-                    </div>
-                </div>
-
-                {/* Botones de acción */}
-                <div style={styles.acciones}>
-                    <button style={styles.btnLlamar}>📞 LLAMAR</button>
-                    <button style={styles.btnLlegar}>📍 CÓMO LLEGAR</button>
-                    <button style={styles.btnReseña}>💬 DEJAR RESEÑA</button>
-                </div>
+                <p>
+                    {parqueadero.disponible 
+                        ? `🟢 ${parqueadero.espacios} espacios disponibles` 
+                        : '🔴 Completamente lleno'}
+                </p>
             </div>
         </div>
     );
@@ -129,179 +109,117 @@ const ParqueaderoDetalle = () => {
 
 const styles = {
     container: {
-        maxWidth: '1200px',
+        maxWidth: '1000px',
         margin: '0 auto',
         padding: '20px'
     },
     header: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '20px'
+        marginBottom: '30px'
     },
     backButton: {
         backgroundColor: 'transparent',
         border: '1px solid #ddd',
         padding: '8px 15px',
         borderRadius: '5px',
-        cursor: 'pointer'
+        cursor: 'pointer',
+        marginBottom: '15px'
     },
     title: {
+        fontSize: '2rem',
         color: '#2C3E50',
-        margin: 0,
-        fontSize: '1.5rem'
+        marginBottom: '10px'
     },
-    headerActions: {
-        display: 'flex',
-        gap: '10px'
+    rating: {
+        fontSize: '1.2rem',
+        color: '#FFC107'
     },
-    iconButton: {
-        backgroundColor: 'transparent',
-        border: '1px solid #ddd',
-        padding: '8px 12px',
-        borderRadius: '5px',
-        cursor: 'pointer',
-        fontSize: '1.2rem'
+    seccion: {
+        marginBottom: '30px'
+    },
+    subtitulo: {
+        fontSize: '1.5rem',
+        color: '#2C3E50',
+        marginBottom: '15px'
     },
     galeria: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: '10px',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+        gap: '15px',
         marginBottom: '20px'
     },
-    fotoPlaceholder: {
+    foto: {
+        width: '100%',
         height: '150px',
-        backgroundColor: '#f0f0f0',
-        borderRadius: '5px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'white',
-        fontSize: '0.8rem'
+        objectFit: 'cover',
+        borderRadius: '8px',
+        cursor: 'pointer',
+        transition: 'transform 0.3s',
+        ':hover': {
+            transform: 'scale(1.05)'
+        }
     },
-    infoCard: {
-        backgroundColor: 'white',
-        padding: '30px',
+    sinFotos: {
+        textAlign: 'center',
+        padding: '40px',
+        backgroundColor: '#f9f9f9',
         borderRadius: '10px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+        marginBottom: '20px',
+        color: '#666'
     },
-    nombre: {
-        fontSize: '2rem',
-        color: '#2C3E50',
-        marginBottom: '5px'
-    },
-    rating: {
-        color: '#FFC107',
-        marginBottom: '20px'
+    subirFotosBtn: {
+        backgroundColor: '#FF7E5F',
+        color: 'white',
+        border: 'none',
+        padding: '10px 20px',
+        borderRadius: '5px',
+        marginTop: '15px',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        transition: 'background 0.3s',
+        ':hover': {
+            backgroundColor: '#E54E2A'
+        }
     },
     infoGrid: {
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
         gap: '15px',
-        marginBottom: '30px'
+        marginBottom: '30px',
+        backgroundColor: 'white',
+        padding: '20px',
+        borderRadius: '10px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
     },
     infoItem: {
-        color: '#666'
-    },
-    subtitle: {
-        color: '#2C3E50',
-        marginBottom: '15px'
-    },
-    tarifas: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: '15px',
-        marginBottom: '30px'
-    },
-    tarifaCard: {
-        backgroundColor: '#f9f9f9',
-        padding: '15px',
-        borderRadius: '5px',
-        textAlign: 'center'
-    },
-    tarifaTitulo: {
-        display: 'block',
-        color: '#666',
-        fontSize: '0.9rem',
-        marginBottom: '5px'
-    },
-    tarifaValor: {
-        display: 'block',
-        color: '#FF7E5F',
-        fontSize: '1.3rem',
-        fontWeight: 'bold'
-    },
-    servicios: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-        gap: '10px',
-        marginBottom: '30px'
-    },
-    servicioItem: {
-        color: '#666'
+        fontSize: '1rem',
+        color: '#2C3E50'
     },
     disponibilidad: {
-        marginBottom: '30px'
+        backgroundColor: 'white',
+        padding: '20px',
+        borderRadius: '10px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
     },
     barraProgreso: {
         height: '20px',
         backgroundColor: '#f0f0f0',
         borderRadius: '10px',
         overflow: 'hidden',
-        marginBottom: '10px'
+        margin: '10px 0'
     },
     barraLlena: {
         height: '100%',
-        backgroundColor: '#4CAF50'
-    },
-    espacios: {
-        display: 'flex',
-        justifyContent: 'space-between'
-    },
-    acciones: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: '15px',
-        marginTop: '20px'
-    },
-    btnLlamar: {
-        backgroundColor: '#4CAF50',
-        color: 'white',
-        border: 'none',
-        padding: '15px',
-        borderRadius: '5px',
-        cursor: 'pointer',
-        fontWeight: 'bold'
-    },
-    btnLlegar: {
-        backgroundColor: '#2C3E50',
-        color: 'white',
-        border: 'none',
-        padding: '15px',
-        borderRadius: '5px',
-        cursor: 'pointer',
-        fontWeight: 'bold'
-    },
-    btnReseña: {
-        backgroundColor: 'white',
-        color: '#FF7E5F',
-        border: '2px solid #FF7E5F',
-        padding: '15px',
-        borderRadius: '5px',
-        cursor: 'pointer',
-        fontWeight: 'bold'
+        transition: 'width 0.3s'
     },
     loading: {
         textAlign: 'center',
         padding: '50px',
-        color: '#666',
-        fontSize: '1.2rem'
+        color: '#666'
     },
     error: {
         textAlign: 'center',
         padding: '50px',
-        color: '#c62828',
-        fontSize: '1.2rem'
+        color: '#F44336'
     }
 };
 
