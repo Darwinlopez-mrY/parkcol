@@ -1,13 +1,122 @@
-body {
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+* {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #F8FAFC;
+  color: #0F172A;
+}
+
+/* Animación de pulso para el marcador de ubicación */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(66, 133, 244, 0.7);
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+    box-shadow: 0 0 0 10px rgba(66, 133, 244, 0);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(66, 133, 244, 0);
+  }
+}
+
+.ubicacion-movimiento {
+  animation: pulse 1.5s infinite;
+}
+
+/* Clases de utilidad para tipografía */
+.h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.h2 {
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.h3 {
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.body-large {
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: #475569;
+}
+
+.body-regular {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.body-small {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #64748B;
+}
+
+/* Estilos para Leaflet Routing Machine */
+.leaflet-routing-container {
+  background-color: white !important;
+  padding: 10px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
+  font-family: 'Inter', sans-serif !important;
+  max-width: 300px !important;
+}
+
+.leaflet-routing-alternatives-container {
+  max-height: 200px !important;
+  overflow-y: auto !important;
+}
+
+.leaflet-routing-alt {
+  border-bottom: 1px solid #e2e8f0 !important;
+  padding: 8px 0 !important;
+}
+
+.leaflet-routing-alt:last-child {
+  border-bottom: none !important;
+}
+
+.leaflet-routing-alt h2 {
+  font-size: 1rem !important;
+  color: #2C3E50 !important;
+  margin-bottom: 5px !important;
+}
+
+.leaflet-routing-alt table {
+  width: 100% !important;
+}
+
+.leaflet-routing-alt td {
+  padding: 2px 0 !important;
+  color: #475569 !important;
+}
+
+.leaflet-routing-icon {
+  background-size: contain !important;
+  width: 20px !important;
+  height: 20px !important;
 }

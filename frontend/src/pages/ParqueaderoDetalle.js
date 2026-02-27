@@ -1,43 +1,71 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useSeguimiento } from '../context/SeguimientoContext';
 import API from '../services/api';
+import SolicitarViaje from '../components/SolicitarViaje';
 
 const ParqueaderoDetalle = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { usuario } = useAuth();
+    const { viajeActivo } = useSeguimiento();
     const [parqueadero, setParqueadero] = useState(null);
     const [cargando, setCargando] = useState(true);
+    const [error, setError] = useState('');
+    const [mostrarSolicitud, setMostrarSolicitud] = useState(false);
 
     const cargarParqueadero = useCallback(async () => {
         try {
+            setCargando(true);
             const response = await API.get(`/parqueaderos/${id}`);
             setParqueadero(response.data);
+            setError('');
         } catch (error) {
-            console.error('Error:', error);
+            console.error('Error cargando parqueadero:', error);
+            setError('No se pudo cargar la información del parqueadero');
         } finally {
             setCargando(false);
         }
     }, [id]);
 
     useEffect(() => {
-        cargarParqueadero();
-    }, [cargarParqueadero]);
+        if (id) {
+            cargarParqueadero();
+        }
+    }, [id, cargarParqueadero]);
 
-    if (cargando) return <div style={styles.loading}>Cargando...</div>;
-    if (!parqueadero) return <div style={styles.error}>Parqueadero no encontrado</div>;
+    if (cargando) {
+        return (
+            <div style={styles.container}>
+                <div style={styles.loading}>Cargando información del parqueadero...</div>
+            </div>
+        );
+    }
+
+    if (error || !parqueadero) {
+        return (
+            <div style={styles.container}>
+                <div style={styles.error}>
+                    <p>{error || 'Parqueadero no encontrado'}</p>
+                    <button onClick={() => navigate(-1)} style={styles.backButton}>
+                        ← Volver
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div style={styles.container}>
-            {/* Encabezado */}
+            {/* Encabezado con botón volver */}
             <div style={styles.header}>
                 <button onClick={() => navigate(-1)} style={styles.backButton}>
-                    ← Atrás
+                    ← Volver
                 </button>
                 <h1 style={styles.title}>{parqueadero.nombre}</h1>
                 <div style={styles.rating}>
-                    ⭐ {parqueadero.rating} ({parqueadero.reseñas} reseñas)
+                    ⭐ {parqueadero.rating?.toFixed(1) || 'Nuevo'} ({parqueadero.reseñas || 0} reseñas)
                 </div>
             </div>
 
@@ -77,13 +105,16 @@ const ParqueaderoDetalle = () => {
                     <strong>📍 Dirección:</strong> {parqueadero.direccion}
                 </div>
                 <div style={styles.infoItem}>
-                    <strong>📞 Teléfono:</strong> {parqueadero.telefono}
+                    <strong>📞 Teléfono:</strong> {parqueadero.telefono || 'No disponible'}
                 </div>
                 <div style={styles.infoItem}>
-                    <strong>🕐 Horario:</strong> {parqueadero.horario}
+                    <strong>🕐 Horario:</strong> {parqueadero.horario || 'No especificado'}
                 </div>
                 <div style={styles.infoItem}>
-                    <strong>💰 Precio por hora:</strong> ${parqueadero.precio}
+                    <strong>💰 Precio por hora:</strong> ${parqueadero.precio?.toLocaleString() || 'N/A'}
+                </div>
+                <div style={styles.infoItem}>
+                    <strong>🚗 Capacidad:</strong> {parqueadero.capacidadTotal || parqueadero.espacios || 'N/A'} espacios
                 </div>
             </div>
 
@@ -93,16 +124,98 @@ const ParqueaderoDetalle = () => {
                 <div style={styles.barraProgreso}>
                     <div style={{
                         ...styles.barraLlena,
-                        width: `${(parqueadero.espaciosDisponibles || parqueadero.espacios) / (parqueadero.capacidadTotal || 40) * 100}%`,
-                        backgroundColor: parqueadero.disponible ? (parqueadero.espacios < 5 ? '#FF9800' : '#4CAF50') : '#F44336'
+                        width: `${(parqueadero.espacios / (parqueadero.capacidadTotal || parqueadero.espacios || 1)) * 100}%`,
+                        backgroundColor: parqueadero.disponible 
+                            ? (parqueadero.espacios < 5 ? '#FF9800' : '#4CAF50') 
+                            : '#F44336'
                     }} />
                 </div>
-                <p>
+                <p style={{
+                    color: parqueadero.disponible 
+                        ? (parqueadero.espacios < 5 ? '#FF9800' : '#4CAF50') 
+                        : '#F44336',
+                    fontWeight: 'bold'
+                }}>
                     {parqueadero.disponible 
                         ? `🟢 ${parqueadero.espacios} espacios disponibles` 
                         : '🔴 Completamente lleno'}
                 </p>
             </div>
+
+            {/* Servicios */}
+            {parqueadero.servicios?.length > 0 && (
+                <div style={styles.servicios}>
+                    <h3>Servicios</h3>
+                    <div style={styles.serviciosGrid}>
+                        {parqueadero.servicios.map((servicio, index) => (
+                            <span key={index} style={styles.servicioTag}>
+                                ✓ {servicio}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* TRES BOTONES DE ACCIÓN */}
+            <div style={styles.acciones}>
+                {/* Botón 1: Llamar */}
+                <a 
+                    href={`tel:${parqueadero.telefono}`}
+                    style={styles.btnLlamar}
+                >
+                    📞 Llamar
+                </a>
+                
+                {/* Botón 2: Cómo llegar (dentro de ParkCol con ruta) */}
+                <button 
+                    onClick={() => navigate(`/buscar?destinoLat=${parqueadero.lat}&destinoLng=${parqueadero.lng}&destinoNombre=${encodeURIComponent(parqueadero.nombre)}`)}
+                    style={styles.btnLlegar}
+                >
+                    🗺️ Cómo llegar
+                </button>
+                
+                {/* Botón 3: Ver en mapa (sin ruta, solo centrado) */}
+                <button 
+                    onClick={() => navigate(`/buscar?lat=${parqueadero.lat}&lng=${parqueadero.lng}&nombre=${encodeURIComponent(parqueadero.nombre)}`)}
+                    style={styles.btnMapa}
+                >
+                    📍 Ver en mapa
+                </button>
+            </div>
+
+            {/* Botón de solicitar servicio (visible solo para usuarios normales) */}
+            {usuario?.rol !== 'propietario' && (
+                <button 
+                    onClick={() => setMostrarSolicitud(true)}
+                    style={styles.btnSolicitar}
+                >
+                    🚗 Solicitar servicio al parqueadero
+                </button>
+            )}
+
+            {/* Estado del viaje activo (si existe) */}
+            {viajeActivo && (
+                <div style={styles.viajeActivo}>
+                    <h3>🟢 Viaje activo</h3>
+                    <p>Estado: {viajeActivo.estado}</p>
+                    {viajeActivo.estado === 'aceptado' && (
+                        <button 
+                            onClick={() => navigate('/buscar?modo=seguimiento')}
+                            style={styles.btnSeguir}
+                        >
+                            Ver seguimiento en mapa
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {/* Modal de solicitud */}
+            {mostrarSolicitud && (
+                <SolicitarViaje 
+                    parqueadero={parqueadero}
+                    onCerrar={() => setMostrarSolicitud(false)}
+                />
+            )}
         </div>
     );
 };
@@ -122,7 +235,12 @@ const styles = {
         padding: '8px 15px',
         borderRadius: '5px',
         cursor: 'pointer',
-        marginBottom: '15px'
+        marginBottom: '15px',
+        fontSize: '1rem',
+        transition: 'background 0.3s',
+        ':hover': {
+            backgroundColor: '#f0f0f0'
+        }
     },
     title: {
         fontSize: '2rem',
@@ -198,7 +316,8 @@ const styles = {
         backgroundColor: 'white',
         padding: '20px',
         borderRadius: '10px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+        marginBottom: '30px'
     },
     barraProgreso: {
         height: '20px',
@@ -211,15 +330,133 @@ const styles = {
         height: '100%',
         transition: 'width 0.3s'
     },
+    servicios: {
+        backgroundColor: 'white',
+        padding: '20px',
+        borderRadius: '10px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+        marginBottom: '30px'
+    },
+    serviciosGrid: {
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '10px',
+        marginTop: '15px'
+    },
+    servicioTag: {
+        backgroundColor: '#f0f0f0',
+        padding: '5px 12px',
+        borderRadius: '20px',
+        fontSize: '0.9rem',
+        color: '#2C3E50'
+    },
+    acciones: {
+        display: 'flex',
+        gap: '10px',
+        justifyContent: 'center',
+        flexWrap: 'wrap',
+        marginBottom: '15px'
+    },
+    btnLlamar: {
+        backgroundColor: '#4CAF50',
+        color: 'white',
+        border: 'none',
+        padding: '15px 20px',
+        borderRadius: '5px',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        textDecoration: 'none',
+        display: 'inline-block',
+        textAlign: 'center',
+        flex: 1,
+        minWidth: '120px',
+        transition: 'background 0.3s',
+        ':hover': {
+            backgroundColor: '#45a049'
+        }
+    },
+    btnLlegar: {
+        backgroundColor: '#4285F4',
+        color: 'white',
+        border: 'none',
+        padding: '15px 20px',
+        borderRadius: '5px',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        textDecoration: 'none',
+        display: 'inline-block',
+        textAlign: 'center',
+        flex: 1,
+        minWidth: '120px',
+        transition: 'background 0.3s',
+        ':hover': {
+            backgroundColor: '#3367d6'
+        }
+    },
+    btnMapa: {
+        backgroundColor: '#9C27B0',
+        color: 'white',
+        border: 'none',
+        padding: '15px 20px',
+        borderRadius: '5px',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        textDecoration: 'none',
+        display: 'inline-block',
+        textAlign: 'center',
+        flex: 1,
+        minWidth: '120px',
+        transition: 'background 0.3s',
+        ':hover': {
+            backgroundColor: '#7B1FA2'
+        }
+    },
+    btnSolicitar: {
+        backgroundColor: '#FF7E5F',
+        color: 'white',
+        border: 'none',
+        padding: '15px 20px',
+        borderRadius: '5px',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        width: '100%',
+        fontSize: '1.1rem',
+        marginTop: '10px',
+        transition: 'background 0.3s',
+        ':hover': {
+            backgroundColor: '#E54E2A',
+            transform: 'translateY(-2px)'
+        }
+    },
+    viajeActivo: {
+        backgroundColor: '#e8f5e9',
+        padding: '20px',
+        borderRadius: '10px',
+        marginTop: '20px',
+        border: '2px solid #4CAF50'
+    },
+    btnSeguir: {
+        backgroundColor: '#4CAF50',
+        color: 'white',
+        border: 'none',
+        padding: '10px 20px',
+        borderRadius: '5px',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        marginTop: '10px',
+        width: '100%'
+    },
     loading: {
         textAlign: 'center',
         padding: '50px',
-        color: '#666'
+        color: '#666',
+        fontSize: '1.2rem'
     },
     error: {
         textAlign: 'center',
         padding: '50px',
-        color: '#F44336'
+        color: '#F44336',
+        fontSize: '1.2rem'
     }
 };
 

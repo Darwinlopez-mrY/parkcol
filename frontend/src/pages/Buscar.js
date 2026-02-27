@@ -12,10 +12,22 @@ const Buscar = () => {
     const [cargando, setCargando] = useState(true);
     const [vista, setVista] = useState('lista');
     const [ubicacionUsuario, setUbicacionUsuario] = useState(null);
+    const [coordenadasDestino, setCoordenadasDestino] = useState(null);
+    
+    // Estados para rutas
+    const [mostrarRuta, setMostrarRuta] = useState(false);
+    const [origenRuta, setOrigenRuta] = useState(null);
+    const [destinoRuta, setDestinoRuta] = useState(null);
+    const [destinoRutaPendiente, setDestinoRutaPendiente] = useState(null);
 
     // Parámetros de búsqueda
     const busqueda = searchParams.get('q') || '';
     const ciudad = searchParams.get('ciudad') || '';
+    const latParam = searchParams.get('lat');
+    const lngParam = searchParams.get('lng');
+    const destinoLat = searchParams.get('destinoLat');
+    const destinoLng = searchParams.get('destinoLng');
+    const destinoNombre = searchParams.get('destinoNombre');
 
     // Coordenadas de ciudades principales
     const coordenadasCiudades = {
@@ -36,6 +48,81 @@ const Buscar = () => {
         'Neiva': [2.9273, -75.2819]
     };
 
+    // Función para activar seguimiento de ruta
+    const activarSeguimientoRuta = (destinoLat, destinoLng) => {
+        if (!navigator.geolocation) {
+            alert('Tu navegador no soporta geolocalización');
+            return;
+        }
+
+        setCargando(true);
+        
+        // Obtener ubicación inicial
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude: lat, longitude: lng } = position.coords;
+                setUbicacionUsuario({ lat, lng });
+                
+                // Activar modo ruta con seguimiento
+                setOrigenRuta([lat, lng]);
+                setDestinoRuta([parseFloat(destinoLat), parseFloat(destinoLng)]);
+                setMostrarRuta(true);
+                setVista('mapa');
+                setCargando(false);
+                
+                // Si hay nombre del destino, mostrar notificación
+                if (destinoNombre) {
+                    setTimeout(() => {
+                        alert(`🗺️ Ruta a ${decodeURIComponent(destinoNombre)}\nDistancia calculada: aproximadamente ${calcularDistanciaAproximada(lat, lng, parseFloat(destinoLat), parseFloat(destinoLng))} km`);
+                    }, 1000);
+                }
+            },
+            (error) => {
+                let mensaje = '';
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        mensaje = 'Permiso denegado. Activa la ubicación para usar esta función.';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        mensaje = 'Ubicación no disponible.';
+                        break;
+                    case error.TIMEOUT:
+                        mensaje = 'Tiempo de espera agotado.';
+                        break;
+                    default:
+                        mensaje = 'Error desconocido al obtener ubicación';
+                }
+                alert(mensaje);
+                setCargando(false);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            }
+        );
+    };
+
+    // Función para calcular distancia aproximada
+    const calcularDistanciaAproximada = (lat1, lon1, lat2, lon2) => {
+        const R = 6371; // Radio de la Tierra en km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return (R * c).toFixed(1);
+    };
+
+    // Efecto para activar ruta si vienen parámetros
+    useEffect(() => {
+        if (destinoLat && destinoLng) {
+            activarSeguimientoRuta(destinoLat, destinoLng);
+        }
+    }, [destinoLat, destinoLng, destinoNombre]);
+
     // Funciones de búsqueda
     const buscarParqueaderos = useCallback(async () => {
         setCargando(true);
@@ -46,13 +133,30 @@ const Buscar = () => {
 
             const url = params.toString() ? `/parqueaderos?${params.toString()}` : '/parqueaderos';
             const response = await API.get(url);
-            setResultados(response.data);
+            
+            let datos = response.data;
+            
+            // Si vienen lat y lng, buscar el parqueadero específico
+            if (latParam && lngParam) {
+                const parqueaderoEspecifico = datos.find(p => 
+                    Math.abs(p.lat - parseFloat(latParam)) < 0.001 && 
+                    Math.abs(p.lng - parseFloat(lngParam)) < 0.001
+                );
+                
+                if (parqueaderoEspecifico) {
+                    datos = [parqueaderoEspecifico];
+                    setVista('mapa');
+                    setCoordenadasDestino([parseFloat(latParam), parseFloat(lngParam)]);
+                }
+            }
+            
+            setResultados(datos);
         } catch (error) {
             console.error('Error al buscar parqueaderos:', error);
         } finally {
             setCargando(false);
         }
-    }, [ciudad, busqueda]);
+    }, [ciudad, busqueda, latParam, lngParam]);
 
     // Efectos
     useEffect(() => {
@@ -104,22 +208,13 @@ const Buscar = () => {
 
     // Función para obtener el centro del mapa
     const obtenerCentroMapa = () => {
-        // Prioridad 1: Ubicación del usuario (si está disponible)
-        if (ubicacionUsuario) {
-            return [ubicacionUsuario.lat, ubicacionUsuario.lng];
-        }
-        
-        // Prioridad 2: Ciudad seleccionada (si está en nuestras coordenadas)
-        if (ciudad && coordenadasCiudades[ciudad]) {
-            return coordenadasCiudades[ciudad];
-        }
-        
-        // Prioridad 3: Usar el primer parqueadero de resultados (si hay)
+        if (mostrarRuta && origenRuta) return origenRuta;
+        if (coordenadasDestino) return coordenadasDestino;
+        if (ubicacionUsuario) return [ubicacionUsuario.lat, ubicacionUsuario.lng];
+        if (ciudad && coordenadasCiudades[ciudad]) return coordenadasCiudades[ciudad];
         if (resultados.length > 0 && resultados[0].lat && resultados[0].lng) {
             return [resultados[0].lat, resultados[0].lng];
         }
-        
-        // Prioridad 4: Bogotá por defecto
         return [4.60971, -74.08175];
     };
 
@@ -179,6 +274,14 @@ const Buscar = () => {
                     centro={centroMapa}
                     mostrarUbicacion={!!ubicacionUsuario}
                     ciudad={ciudad}
+                    mostrarRuta={mostrarRuta}
+                    origenRuta={origenRuta}
+                    destinoRuta={destinoRuta}
+                    onCerrarRuta={() => {
+                        setMostrarRuta(false);
+                        setOrigenRuta(null);
+                        setDestinoRuta(null);
+                    }}
                 />
             </div>
         );
@@ -224,6 +327,23 @@ const Buscar = () => {
                 <button style={styles.filterChip}>⚡ Más filtros</button>
             </div>
 
+            {/* Mensaje de ruta activa */}
+            {mostrarRuta && destinoNombre && (
+                <div style={styles.rutaActiva}>
+                    <span>🗺️ Ruta activa a: {decodeURIComponent(destinoNombre)}</span>
+                    <button 
+                        onClick={() => {
+                            setMostrarRuta(false);
+                            setOrigenRuta(null);
+                            setDestinoRuta(null);
+                        }}
+                        style={styles.cerrarRutaBtn}
+                    >
+                        ✕
+                    </button>
+                </div>
+            )}
+
             {/* Contador de resultados */}
             <p style={styles.resultCount}>
                 {resultados.length} parqueadero{resultados.length !== 1 ? 's' : ''} encontrado{resultados.length !== 1 ? 's' : ''}
@@ -242,7 +362,6 @@ const Buscar = () => {
     );
 };
 
-// Estilos
 const styles = {
     container: {
         maxWidth: '1200px',
@@ -303,6 +422,26 @@ const styles = {
         borderRadius: '20px',
         cursor: 'pointer',
         whiteSpace: 'nowrap'
+    },
+    rutaActiva: {
+        backgroundColor: '#e3f2fd',
+        border: '1px solid #2196F3',
+        borderRadius: '5px',
+        padding: '10px 15px',
+        marginBottom: '15px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        color: '#0d47a1',
+        fontWeight: 'bold'
+    },
+    cerrarRutaBtn: {
+        backgroundColor: 'transparent',
+        border: 'none',
+        color: '#F44336',
+        fontSize: '1.2rem',
+        cursor: 'pointer',
+        fontWeight: 'bold'
     },
     resultCount: {
         color: '#666',
