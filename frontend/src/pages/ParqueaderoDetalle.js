@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import API from '../services/api';
@@ -10,11 +10,7 @@ const ParqueaderoDetalle = () => {
     const [parqueadero, setParqueadero] = useState(null);
     const [cargando, setCargando] = useState(true);
 
-    useEffect(() => {
-        cargarParqueadero();
-    }, [id]);
-
-    const cargarParqueadero = async () => {
+    const cargarParqueadero = useCallback(async () => {
         try {
             const response = await API.get(`/parqueaderos/${id}`);
             setParqueadero(response.data);
@@ -23,7 +19,11 @@ const ParqueaderoDetalle = () => {
         } finally {
             setCargando(false);
         }
-    };
+    }, [id]);
+
+    useEffect(() => {
+        cargarParqueadero();
+    }, [cargarParqueadero]);
 
     if (cargando) return <div style={styles.loading}>Cargando...</div>;
     if (!parqueadero) return <div style={styles.error}>Parqueadero no encontrado</div>;
