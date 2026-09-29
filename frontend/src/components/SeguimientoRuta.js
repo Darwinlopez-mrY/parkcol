@@ -4,44 +4,53 @@ import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import 'leaflet-routing-machine';
 
 const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
-    const [ubicacionActual, setUbicacionActual] = useState(origenInicial);
     const [distanciaRestante, setDistanciaRestante] = useState(null);
     const [tiempoRestante, setTiempoRestante] = useState(null);
-    const [watchId, setWatchId] = useState(null);
     const [mapaListo, setMapaListo] = useState(false);
     const routingControlRef = useRef(null);
     const markerUbicacionRef = useRef(null);
+    const montadoRef = useRef(true);
 
     // Verificar que el mapa esté listo
     useEffect(() => {
         if (map) {
-            setMapaListo(true);
+            const timer = setTimeout(() => {
+                if (montadoRef.current) setMapaListo(true);
+            }, 100);
+            return () => clearTimeout(timer);
         }
     }, [map]);
+
+    // Cleanup: marcar desmontaje
+    useEffect(() => {
+        montadoRef.current = true;
+        return () => {
+            montadoRef.current = false;
+        };
+    }, []);
 
     // Iniciar seguimiento de ubicación
     useEffect(() => {
         if (!mapaListo) return;
 
         if (!navigator.geolocation) {
-            alert('Tu navegador no soporta geolocalización');
+            console.warn('Navegador no soporta geolocalización');
             return;
         }
 
-        // Configurar seguimiento continuo
         const id = navigator.geolocation.watchPosition(
             (position) => {
+                if (!montadoRef.current) return;
                 const nuevaUbicacion = [
                     position.coords.latitude,
                     position.coords.longitude
                 ];
-                setUbicacionActual(nuevaUbicacion);
-                if (mapaListo) {
+                if (mapaListo && montadoRef.current) {
                     actualizarRuta(nuevaUbicacion);
                 }
             },
             (error) => {
-                console.error('Error de seguimiento:', error);
+                console.warn('Error de seguimiento:', error);
             },
             {
                 enableHighAccuracy: true,
@@ -50,9 +59,6 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
             }
         );
 
-        setWatchId(id);
-
-        // Limpiar al desmontar
         return () => {
             if (id) {
                 navigator.geolocation.clearWatch(id);
@@ -65,117 +71,150 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
         if (!mapaListo || !map || !origenInicial || !destino) return;
 
         // Eliminar ruta anterior si existe
-        if (routingControlRef.current) {
-            map.removeControl(routingControlRef.current);
+        if (routingControlRef.current && map && map.removeControl) {
+            try {
+                map.removeControl(routingControlRef.current);
+                routingControlRef.current = null;
+            } catch (e) {
+                console.warn('Error removing previous control:', e);
+            }
         }
 
-        // Crear control de ruta
-        const routingControl = L.Routing.control({
-            waypoints: [
-                L.latLng(origenInicial[0], origenInicial[1]),
-                L.latLng(destino[0], destino[1])
-            ],
-            routeWhileDragging: false,
-            showAlternatives: false,
-            lineOptions: {
-                styles: [{ color: '#FF7E5F', weight: 5 }]
-            },
-            show: true,
-            addWaypoints: false,
-            draggableWaypoints: false,
-            fitSelectedRoutes: true,
-            language: 'es',
-            createMarker: () => null // No crear marcadores
-        }).addTo(map);
+        if (!map._container) return;
 
-        // Escuchar cuando se calcula la ruta
-        routingControl.on('routesfound', (e) => {
-            const routes = e.routes;
-            const summary = routes[0].summary;
-            
-            setDistanciaRestante((summary.totalDistance / 1000).toFixed(1));
-            setTiempoRestante(Math.round(summary.totalTime / 60));
-        });
+        // Crear control de ruta
+        let routingControl;
+        try {
+            routingControl = L.Routing.control({
+                waypoints: [
+                    L.latLng(origenInicial[0], origenInicial[1]),
+                    L.latLng(destino[0], destino[1])
+                ],
+                routeWhileDragging: false,
+                showAlternatives: false,
+                lineOptions: {
+                    styles: [{ color: '#FF7E5F', weight: 5, opacity: 0.9 }],
+                    extendToWaypoints: true,
+                    missingRouteTolerance: 0
+                },
+                show: false,
+                addWaypoints: false,
+                draggableWaypoints: false,
+                fitSelectedRoutes: true,
+                language: 'es',
+                createMarker: () => null,
+                router: L.Routing.osrmv1({
+                    serviceUrl: 'https://router.project-osrm.org/route/v1'
+                })
+            }).addTo(map);
+
+            routingControl.on('routesfound', (e) => {
+                if (!montadoRef.current) return;
+                const routes = e.routes;
+                const summary = routes[0].summary;
+
+                setDistanciaRestante((summary.totalDistance / 1000).toFixed(1));
+                setTiempoRestante(Math.round(summary.totalTime / 60));
+
+                // Forzar que la línea quede arriba
+                try {
+                    if (routingControl._line) {
+                        routingControl._line.bringToFront();
+                    }
+                } catch (err) {
+                    console.warn('Error bringing line to front:', err);
+                }
+            });
+        } catch (e) {
+            console.warn('Error creating routing control:', e);
+            return;
+        }
 
         routingControlRef.current = routingControl;
 
+        // Marcar ubicación actual como marcador azul
+        try {
+            const iconoMovimiento = L.divIcon({
+                className: 'ubicacion-movimiento',
+                html: `<div style="
+                    background-color: #4285F4;
+                    width: 20px;
+                    height: 20px;
+                    border-radius: 50%;
+                    border: 4px solid white;
+                    box-shadow: 0 0 20px #4285F4;
+                    animation: pulse 1s infinite;
+                "></div>`,
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
+            });
+
+            const marker = L.marker(origenInicial, { icon: iconoMovimiento }).addTo(map);
+            marker.bindPopup('📍 Tu ubicación actual');
+            markerUbicacionRef.current = marker;
+        } catch (e) {
+            console.warn('Error creating location marker:', e);
+        }
+
         return () => {
-            if (routingControlRef.current) {
-                map.removeControl(routingControlRef.current);
+            if (routingControlRef.current && map && map.removeControl) {
+                try {
+                    map.removeControl(routingControlRef.current);
+                    routingControlRef.current = null;
+                } catch (e) {
+                    console.warn('Error cleaning up route:', e);
+                }
+            }
+            if (markerUbicacionRef.current && map && map.removeLayer) {
+                try {
+                    map.removeLayer(markerUbicacionRef.current);
+                    markerUbicacionRef.current = null;
+                } catch (e) {
+                    console.warn('Error cleaning up marker:', e);
+                }
             }
         };
     }, [mapaListo, map, origenInicial, destino]);
 
     // Actualizar ruta con nueva ubicación
     const actualizarRuta = (nuevaUbicacion) => {
-        if (!routingControlRef.current || !map) return;
+        if (!routingControlRef.current || !map || !map._container) return;
+        if (!montadoRef.current) return;
 
         try {
-            // Actualizar el primer waypoint con la nueva ubicación
             routingControlRef.current.setWaypoints([
                 L.latLng(nuevaUbicacion[0], nuevaUbicacion[1]),
                 L.latLng(destino[0], destino[1])
             ]);
 
-            // Centrar mapa en la nueva ubicación
-            if (map && map.setView) {
-                map.setView(nuevaUbicacion, 16);
-            }
-
-            // Actualizar marcador de ubicación
-            if (markerUbicacionRef.current) {
+            if (markerUbicacionRef.current && markerUbicacionRef.current._map) {
                 markerUbicacionRef.current.setLatLng(nuevaUbicacion);
-            } else if (map) {
-                // Crear marcador animado para la ubicación actual
-                const iconoMovimiento = L.divIcon({
-                    className: 'ubicacion-movimiento',
-                    html: `<div style="
-                        background-color: #4285F4;
-                        width: 20px;
-                        height: 20px;
-                        border-radius: 50%;
-                        border: 4px solid white;
-                        box-shadow: 0 0 20px #4285F4;
-                        animation: pulse 1s infinite;
-                    "></div>`,
-                    iconSize: [28, 28],
-                    iconAnchor: [14, 14]
-                });
-
-                const marker = L.marker(nuevaUbicacion, { icon: iconoMovimiento }).addTo(map);
-                marker.bindPopup('📍 Tu ubicación actual').openPopup();
-                markerUbicacionRef.current = marker;
             }
 
-            // Recalcular distancia y tiempo (aproximado)
             const distancia = calcularDistancia(
                 nuevaUbicacion[0], nuevaUbicacion[1],
                 destino[0], destino[1]
             );
             setDistanciaRestante(distancia.toFixed(1));
-            
-            // Tiempo estimado: asumiendo velocidad promedio 30 km/h
-            const tiempoMin = Math.round((distancia / 30) * 60);
-            setTiempoRestante(tiempoMin);
+            setTiempoRestante(Math.round((distancia / 30) * 60));
         } catch (error) {
-            console.error('Error actualizando ruta:', error);
+            console.warn('Error actualizando ruta:', error);
         }
     };
 
-    // Calcular distancia entre dos puntos (fórmula de Haversine)
     const calcularDistancia = (lat1, lon1, lat2, lon2) => {
-        const R = 6371; // Radio de la Tierra en km
+        const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = 
-            Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
     };
 
-    // Agregar estilos de animación
+    // Estilos de animación
     useEffect(() => {
         const style = document.createElement('style');
         style.innerHTML = `
@@ -187,7 +226,7 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
         `;
         document.head.appendChild(style);
         return () => {
-            document.head.removeChild(style);
+            if (style.parentNode) style.parentNode.removeChild(style);
         };
     }, []);
 
@@ -205,7 +244,7 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
         }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                 <strong style={{ color: '#2C3E50' }}>🚗 Siguiendo tu ruta</strong>
-                <button 
+                <button
                     onClick={onCerrar}
                     style={{
                         background: 'none',
@@ -218,13 +257,13 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
                     ✕
                 </button>
             </div>
-            
+
             <div style={{ marginBottom: '15px' }}>
                 <p style={{ margin: '5px 0' }}>
-                    <strong>📍 Distancia restante:</strong> {distanciaRestante} km
+                    <strong>📍 Distancia restante:</strong> {distanciaRestante || '...'} km
                 </p>
                 <p style={{ margin: '5px 0' }}>
-                    <strong>⏱️ Tiempo estimado:</strong> {tiempoRestante} min
+                    <strong>⏱️ Tiempo estimado:</strong> {tiempoRestante || '...'} min
                 </p>
             </div>
 
@@ -244,8 +283,12 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
 
             <button
                 onClick={() => {
-                    if (routingControlRef.current) {
-                        routingControlRef.current.route();
+                    if (routingControlRef.current && montadoRef.current) {
+                        try {
+                            routingControlRef.current.route();
+                        } catch (e) {
+                            console.warn('Error recalculating route:', e);
+                        }
                     }
                 }}
                 style={{

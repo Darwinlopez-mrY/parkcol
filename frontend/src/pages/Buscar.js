@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import API from '../services/api';
 import Mapa from '../components/Mapa';
@@ -18,7 +18,7 @@ const Buscar = () => {
     const [mostrarRuta, setMostrarRuta] = useState(false);
     const [origenRuta, setOrigenRuta] = useState(null);
     const [destinoRuta, setDestinoRuta] = useState(null);
-    const [destinoRutaPendiente, setDestinoRutaPendiente] = useState(null);
+    const rutaActivadaRef = useRef(false); // ✅ Evita doble ejecución
 
     // Parámetros de búsqueda
     const busqueda = searchParams.get('q') || '';
@@ -48,64 +48,9 @@ const Buscar = () => {
         'Neiva': [2.9273, -75.2819]
     };
 
-    // Función para activar seguimiento de ruta
-    const activarSeguimientoRuta = (destinoLat, destinoLng) => {
-        if (!navigator.geolocation) {
-            alert('Tu navegador no soporta geolocalización');
-            return;
-        }
-
-        setCargando(true);
-        
-        // Obtener ubicación inicial
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude: lat, longitude: lng } = position.coords;
-                setUbicacionUsuario({ lat, lng });
-                
-                // Activar modo ruta con seguimiento
-                setOrigenRuta([lat, lng]);
-                setDestinoRuta([parseFloat(destinoLat), parseFloat(destinoLng)]);
-                setMostrarRuta(true);
-                setVista('mapa');
-                setCargando(false);
-                
-                // Si hay nombre del destino, mostrar notificación
-                if (destinoNombre) {
-                    setTimeout(() => {
-                        alert(`🗺️ Ruta a ${decodeURIComponent(destinoNombre)}\nDistancia calculada: aproximadamente ${calcularDistanciaAproximada(lat, lng, parseFloat(destinoLat), parseFloat(destinoLng))} km`);
-                    }, 1000);
-                }
-            },
-            (error) => {
-                let mensaje = '';
-                switch(error.code) {
-                    case error.PERMISSION_DENIED:
-                        mensaje = 'Permiso denegado. Activa la ubicación para usar esta función.';
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        mensaje = 'Ubicación no disponible.';
-                        break;
-                    case error.TIMEOUT:
-                        mensaje = 'Tiempo de espera agotado.';
-                        break;
-                    default:
-                        mensaje = 'Error desconocido al obtener ubicación';
-                }
-                alert(mensaje);
-                setCargando(false);
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            }
-        );
-    };
-
     // Función para calcular distancia aproximada
     const calcularDistanciaAproximada = (lat1, lon1, lat2, lon2) => {
-        const R = 6371; // Radio de la Tierra en km
+        const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
         const a = 
@@ -116,12 +61,75 @@ const Buscar = () => {
         return (R * c).toFixed(1);
     };
 
+    // Función para activar seguimiento de ruta
+    const activarSeguimientoRuta = useCallback((destinoLat, destinoLng) => {
+        console.log('🎯 1. activarSeguimientoRuta:', { destinoLat, destinoLng });
+        
+        if (!navigator.geolocation) {
+            alert('Tu navegador no soporta geolocalización');
+            return;
+        }
+
+        setCargando(true);
+        
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude: lat, longitude: lng } = position.coords;
+                console.log('🎯 2. Ubicación obtenida:', { lat, lng });
+                
+                setUbicacionUsuario({ lat, lng });
+                
+                const origen = [lat, lng];
+                const destino = [parseFloat(destinoLat), parseFloat(destinoLng)];
+                console.log('🎯 3. Seteando estados:', { origen, destino });
+                
+                setOrigenRuta(origen);
+                setDestinoRuta(destino);
+                setMostrarRuta(true);
+                setVista('mapa');
+                setCargando(false);
+                
+                console.log('🎯 4. Estados seteados OK');
+                
+                if (destinoNombre) {
+                    setTimeout(() => {
+                        alert(`🗺️ Ruta a ${decodeURIComponent(destinoNombre)}\nDistancia calculada: aproximadamente ${calcularDistanciaAproximada(lat, lng, parseFloat(destinoLat), parseFloat(destinoLng))} km`);
+                    }, 1000);
+                }
+            },
+            (error) => {
+                console.error('❌ Error de geolocalización:', error);
+                let mensaje = 'Error desconocido';
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        mensaje = 'Permiso denegado. Activa la ubicación.';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        mensaje = 'Ubicación no disponible.';
+                        break;
+                    case error.TIMEOUT:
+                        mensaje = 'Tiempo de espera agotado.';
+                        break;
+                }
+                alert(mensaje);
+                setCargando(false);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            }
+        );
+    }, [destinoNombre]);
+
     // Efecto para activar ruta si vienen parámetros
     useEffect(() => {
-        if (destinoLat && destinoLng) {
+        if (destinoLat && destinoLng && !rutaActivadaRef.current) {
+            rutaActivadaRef.current = true;
+            console.log('🎯 Efecto de ruta disparado con:', { destinoLat, destinoLng, destinoNombre });
             activarSeguimientoRuta(destinoLat, destinoLng);
         }
-    }, [destinoLat, destinoLng, destinoNombre]);
+    }, [destinoLat, destinoLng, destinoNombre, activarSeguimientoRuta]);
 
     // Funciones de búsqueda
     const buscarParqueaderos = useCallback(async () => {
@@ -136,7 +144,6 @@ const Buscar = () => {
             
             let datos = response.data;
             
-            // Si vienen lat y lng, buscar el parqueadero específico
             if (latParam && lngParam) {
                 const parqueaderoEspecifico = datos.find(p => 
                     Math.abs(p.lat - parseFloat(latParam)) < 0.001 && 
@@ -158,7 +165,6 @@ const Buscar = () => {
         }
     }, [ciudad, busqueda, latParam, lngParam]);
 
-    // Efectos
     useEffect(() => {
         buscarParqueaderos();
     }, [buscarParqueaderos]);
@@ -188,25 +194,22 @@ const Buscar = () => {
             },
             (error) => {
                 const mensajesError = {
-                    [error.PERMISSION_DENIED]: 'Permiso denegado. Activa la ubicación.',
+                    [error.PERMISSION_DENIED]: 'Permiso denegado.',
                     [error.POSITION_UNAVAILABLE]: 'Ubicación no disponible.',
                     [error.TIMEOUT]: 'Tiempo de espera agotado.'
                 };
-                
-                alert(mensajesError[error.code] || 'Error desconocido al obtener ubicación');
+                alert(mensajesError[error.code] || 'Error desconocido');
                 setCargando(false);
             }
         );
     };
 
-    // Utilidades
     const getDisponibilidadColor = (disponible, espacios) => {
         if (!disponible) return { color: '#F44336', texto: '🔴 Lleno' };
         if (espacios < 5) return { color: '#FF9800', texto: '🟡 Pocos espacios' };
         return { color: '#4CAF50', texto: '🟢 Disponible' };
     };
 
-    // Función para obtener el centro del mapa
     const obtenerCentroMapa = () => {
         if (mostrarRuta && origenRuta) return origenRuta;
         if (coordenadasDestino) return coordenadasDestino;
@@ -218,15 +221,10 @@ const Buscar = () => {
         return [4.60971, -74.08175];
     };
 
-    // Renderizado de componentes
     const renderVistaLista = () => (
         <div style={styles.lista}>
             {resultados.map(parqueadero => {
-                const disponibilidad = getDisponibilidadColor(
-                    parqueadero.disponible, 
-                    parqueadero.espacios
-                );
-                
+                const disponibilidad = getDisponibilidadColor(parqueadero.disponible, parqueadero.espacios);
                 return (
                     <div key={parqueadero._id || parqueadero.id} style={styles.card}>
                         <div style={styles.cardHeader}>
@@ -234,24 +232,13 @@ const Buscar = () => {
                                 {disponibilidad.texto}
                             </span>
                         </div>
-                        
                         <h3 style={styles.cardTitle}>{parqueadero.nombre}</h3>
-                        
-                        <div style={styles.rating}>
-                            ⭐ {parqueadero.rating} ({parqueadero.reseñas} reseñas)
-                        </div>
-                        
-                        <p style={styles.cardAddress}>
-                            📍 {parqueadero.direccion}, {parqueadero.ciudad}
-                        </p>
-                        
+                        <div style={styles.rating}>⭐ {parqueadero.rating} ({parqueadero.reseñas} reseñas)</div>
+                        <p style={styles.cardAddress}>📍 {parqueadero.direccion}, {parqueadero.ciudad}</p>
                         <div style={styles.cardFooter}>
                             <span style={styles.price}>💰 ${parqueadero.precio}/h</span>
-                            <span style={styles.distance}>
-                                📍 {parqueadero.distancia || '0m'}
-                            </span>
+                            <span style={styles.distance}>📍 {parqueadero.distancia || '0m'}</span>
                         </div>
-                        
                         <button
                             style={styles.viewDetails}
                             onClick={() => navigate(`/parqueadero/${parqueadero._id || parqueadero.id}`)}
@@ -266,6 +253,8 @@ const Buscar = () => {
 
     const renderVistaMapa = () => {
         const centroMapa = obtenerCentroMapa();
+        
+        console.log('🎯 5. renderVistaMapa:', { mostrarRuta, origenRuta, destinoRuta, centroMapa });
 
         return (
             <div style={styles.mapaContainer}>
@@ -281,53 +270,32 @@ const Buscar = () => {
                         setMostrarRuta(false);
                         setOrigenRuta(null);
                         setDestinoRuta(null);
+                        rutaActivadaRef.current = false;
                     }}
                 />
             </div>
         );
     };
 
-    // Render principal
     return (
         <div style={styles.container}>
-            {/* Encabezado */}
             <header style={styles.header}>
-                <button onClick={() => navigate('/')} style={styles.backButton}>
-                    ← Atrás
-                </button>
-                
-                <h1 style={styles.title}>
-                    {ciudad ? `Resultados en ${ciudad}` : 'Resultados de búsqueda'}
-                </h1>
-                
+                <button onClick={() => navigate('/')} style={styles.backButton}>← Atrás</button>
+                <h1 style={styles.title}>{ciudad ? `Resultados en ${ciudad}` : 'Resultados de búsqueda'}</h1>
                 <div style={styles.viewToggle}>
-                    <button
-                        onClick={() => setVista('lista')}
-                        style={vista === 'lista' ? styles.viewActive : styles.viewButton}
-                    >
-                        📋 Lista
-                    </button>
-                    <button
-                        onClick={() => setVista('mapa')}
-                        style={vista === 'mapa' ? styles.viewActive : styles.viewButton}
-                    >
-                        🗺️ Mapa
-                    </button>
+                    <button onClick={() => setVista('lista')} style={vista === 'lista' ? styles.viewActive : styles.viewButton}>📋 Lista</button>
+                    <button onClick={() => setVista('mapa')} style={vista === 'mapa' ? styles.viewActive : styles.viewButton}>🗺️ Mapa</button>
                 </div>
             </header>
 
-            {/* Filtros */}
             <div style={styles.filters}>
-                <button onClick={buscarCercaDeMi} style={styles.filterChip}>
-                    📍 Cerca de mí
-                </button>
+                <button onClick={buscarCercaDeMi} style={styles.filterChip}>📍 Cerca de mí</button>
                 <button style={styles.filterChip}>💰 Precio</button>
                 <button style={styles.filterChip}>🕐 Horario</button>
                 <button style={styles.filterChip}>🚗 Tipo</button>
                 <button style={styles.filterChip}>⚡ Más filtros</button>
             </div>
 
-            {/* Mensaje de ruta activa */}
             {mostrarRuta && destinoNombre && (
                 <div style={styles.rutaActiva}>
                     <span>🗺️ Ruta activa a: {decodeURIComponent(destinoNombre)}</span>
@@ -336,20 +304,17 @@ const Buscar = () => {
                             setMostrarRuta(false);
                             setOrigenRuta(null);
                             setDestinoRuta(null);
+                            rutaActivadaRef.current = false;
                         }}
                         style={styles.cerrarRutaBtn}
-                    >
-                        ✕
-                    </button>
+                    >✕</button>
                 </div>
             )}
 
-            {/* Contador de resultados */}
             <p style={styles.resultCount}>
                 {resultados.length} parqueadero{resultados.length !== 1 ? 's' : ''} encontrado{resultados.length !== 1 ? 's' : ''}
             </p>
 
-            {/* Contenido principal */}
             {cargando ? (
                 <div style={styles.loading}>Buscando parqueaderos...</div>
             ) : (
@@ -361,6 +326,9 @@ const Buscar = () => {
         </div>
     );
 };
+
+// ... styles igual ...
+
 
 const styles = {
     container: {

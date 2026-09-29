@@ -15,21 +15,29 @@ L.Icon.Default.mergeOptions({
     shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
 });
 
-// Componente para centrar el mapa en la ubicación del usuario
+// ============================================
+// Componente para centrar el mapa
+// ============================================
 const CentrarMapa = ({ posicion }) => {
     const map = useMap();
     useEffect(() => {
-        if (posicion) {
-            map.setView(posicion, 15);
+        if (posicion && map) {
+            try {
+                map.setView(posicion, 15);
+            } catch (e) {
+                console.warn('Error centering map:', e);
+            }
         }
     }, [posicion, map]);
     return null;
 };
 
+// ============================================
 // Componente para mostrar la ubicación del usuario
+// ============================================
 const UbicacionUsuario = ({ posicion }) => {
     if (!posicion) return null;
-    
+
     const iconoUsuario = L.divIcon({
         className: 'ubicacion-usuario',
         html: `<div style="
@@ -51,15 +59,57 @@ const UbicacionUsuario = ({ posicion }) => {
     );
 };
 
-// Componente para mostrar el seguimiento del propietario en tiempo real
+// ============================================
+// 👈 CAMBIO CLAVE: Wrapper que usa useMap()
+// ============================================
+const SeguimientoRutaWrapper = ({ origenInicial, destino, onCerrar }) => {
+    const map = useMap();  // 👈 useMap() obtiene el mapa correctamente
+    const [listo, setListo] = useState(false);
+
+    useEffect(() => {
+        if (map) {
+            console.log('🗺️ Wrapper: map detectado, esperando 200ms...');
+            const timer = setTimeout(() => {
+                console.log('🗺️ Wrapper: seteando listo=true');
+                setListo(true);
+            }, 200);
+            return () => clearTimeout(timer);
+        }
+    }, [map]);
+
+    if (!listo) {
+        return null;
+    }
+
+    console.log('🗺️ Wrapper: renderizando SeguimientoRuta con map:', map);
+    return (
+        <SeguimientoRuta
+            map={map}
+            origenInicial={origenInicial}
+            destino={destino}
+            onCerrar={onCerrar}
+        />
+    );
+};
+
+// ============================================
+// Componente para mostrar el seguimiento del propietario
+// ============================================
 const SeguimientoPropietario = ({ viajeActivo, ubicacionPropietario }) => {
     const map = useMap();
     const markerRef = useRef();
     const rutaRef = useRef();
+    const montadoRef = useRef(true);
     const [distancia, setDistancia] = useState(null);
     const [tiempoEstimado, setTiempoEstimado] = useState(null);
 
-    // Agregar estilos de animación al documento (fuera de cualquier condición)
+    useEffect(() => {
+        montadoRef.current = true;
+        return () => {
+            montadoRef.current = false;
+        };
+    }, []);
+
     useEffect(() => {
         const style = document.createElement('style');
         style.innerHTML = `
@@ -71,72 +121,93 @@ const SeguimientoPropietario = ({ viajeActivo, ubicacionPropietario }) => {
         `;
         document.head.appendChild(style);
         return () => {
-            document.head.removeChild(style);
+            if (style.parentNode) {
+                style.parentNode.removeChild(style);
+            }
         };
     }, []);
 
     useEffect(() => {
         if (!ubicacionPropietario || !viajeActivo) return;
+        if (!map || !map._container || !montadoRef.current) return;
 
-        // Centrar mapa en el propietario y hacer zoom
-        map.setView(ubicacionPropietario, 16);
-
-        // Animar marcador del propietario
-        if (markerRef.current) {
-            markerRef.current.setLatLng(ubicacionPropietario);
+        try {
+            map.setView(ubicacionPropietario, 16);
+        } catch (e) {
+            console.warn('Error setting view:', e);
         }
 
-        // Calcular distancia y tiempo estimado (simulado)
+        if (markerRef.current && markerRef.current._map) {
+            try {
+                markerRef.current.setLatLng(ubicacionPropietario);
+            } catch (e) {
+                console.warn('Error updating marker:', e);
+            }
+        }
+
         if (viajeActivo.destino) {
             const distanciaCalculada = calcularDistancia(
                 ubicacionPropietario[0], ubicacionPropietario[1],
                 viajeActivo.destino[0], viajeActivo.destino[1]
             );
             setDistancia(distanciaCalculada.toFixed(1));
-            
-            // Tiempo estimado: asumiendo velocidad promedio 30 km/h
-            const tiempoMinutos = (distanciaCalculada / 30) * 60;
-            setTiempoEstimado(Math.round(tiempoMinutos));
+            setTiempoEstimado(Math.round((distanciaCalculada / 30) * 60));
         }
 
-        // Dibujar o actualizar línea de ruta
         if (viajeActivo.origen && viajeActivo.destino) {
-            if (rutaRef.current) {
-                map.removeLayer(rutaRef.current);
+            if (rutaRef.current && map && map.removeLayer) {
+                try {
+                    map.removeLayer(rutaRef.current);
+                    rutaRef.current = null;
+                } catch (e) {
+                    console.warn('Error removing previous route:', e);
+                }
             }
 
-            // Crear línea punteada desde ubicación actual hasta destino
-            const rutaLinea = L.polyline(
-                [ubicacionPropietario, viajeActivo.destino],
-                {
-                    color: '#FF7E5F',
-                    weight: 4,
-                    opacity: 0.8,
-                    dashArray: '10, 10',
-                    lineCap: 'round'
-                }
-            ).addTo(map);
+            try {
+                const rutaLinea = L.polyline(
+                    [ubicacionPropietario, viajeActivo.destino],
+                    {
+                        color: '#FF7E5F',
+                        weight: 4,
+                        opacity: 0.8,
+                        dashArray: '10, 10',
+                        lineCap: 'round'
+                    }
+                ).addTo(map);
 
-            rutaRef.current = rutaLinea;
+                rutaRef.current = rutaLinea;
+            } catch (e) {
+                console.warn('Error creating route line:', e);
+            }
         }
+
+        return () => {
+            if (rutaRef.current && map && map.removeLayer) {
+                try {
+                    map.removeLayer(rutaRef.current);
+                    rutaRef.current = null;
+                } catch (e) {
+                    console.warn('Error cleaning up route line:', e);
+                }
+            }
+        };
     }, [ubicacionPropietario, viajeActivo, map]);
 
-    // Función para calcular distancia entre dos puntos (fórmula de Haversine)
     const calcularDistancia = (lat1, lon1, lat2, lon2) => {
-        const R = 6371; // Radio de la Tierra en km
+        const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = 
-            Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
     };
 
     if (!ubicacionPropietario || !viajeActivo) return null;
 
-    // Icono animado para el propietario
     const iconoPropietario = L.divIcon({
         className: 'propietario-marker',
         html: `<div style="
@@ -178,31 +249,16 @@ const SeguimientoPropietario = ({ viajeActivo, ubicacionPropietario }) => {
                 ref={markerRef}
             >
                 <Popup>
-                    <div style={{ 
-                        minWidth: '200px', 
-                        textAlign: 'center',
-                        fontFamily: 'Arial'
-                    }}>
+                    <div style={{ minWidth: '200px', textAlign: 'center', fontFamily: 'Arial' }}>
                         <strong style={{ fontSize: '1.1rem', color: '#FF7E5F' }}>
                             🚗 Conductor en camino
                         </strong>
-                        
                         {distancia && tiempoEstimado && (
-                            <div style={{ 
-                                margin: '10px 0',
-                                padding: '10px',
-                                backgroundColor: '#f5f5f5',
-                                borderRadius: '5px'
-                            }}>
-                                <p style={{ margin: '2px 0' }}>
-                                    <strong>Distancia:</strong> {distancia} km
-                                </p>
-                                <p style={{ margin: '2px 0' }}>
-                                    <strong>Tiempo estimado:</strong> {tiempoEstimado} min
-                                </p>
+                            <div style={{ margin: '10px 0', padding: '10px', backgroundColor: '#f5f5f5', borderRadius: '5px' }}>
+                                <p style={{ margin: '2px 0' }}><strong>Distancia:</strong> {distancia} km</p>
+                                <p style={{ margin: '2px 0' }}><strong>Tiempo estimado:</strong> {tiempoEstimado} min</p>
                             </div>
                         )}
-                        
                         <p style={{ fontSize: '0.9rem', color: '#666' }}>
                             Te notificaremos cuando llegue
                         </p>
@@ -210,7 +266,6 @@ const SeguimientoPropietario = ({ viajeActivo, ubicacionPropietario }) => {
                 </Popup>
             </Marker>
 
-            {/* Marcador del destino */}
             <Marker
                 position={viajeActivo.destino}
                 icon={L.divIcon({
@@ -242,13 +297,16 @@ const SeguimientoPropietario = ({ viajeActivo, ubicacionPropietario }) => {
     );
 };
 
-const Mapa = ({ 
-    parqueaderos, 
-    centro, 
-    zoom = 13, 
-    mostrarUbicacion = false, 
+// ============================================
+// COMPONENTE PRINCIPAL MAPA
+// ============================================
+const Mapa = ({
+    parqueaderos,
+    centro,
+    zoom = 13,
+    mostrarUbicacion = false,
     ciudad,
-    modo = 'normal', // 'normal' o 'seguimiento'
+    modo = 'normal',
     mostrarRuta = false,
     origenRuta = null,
     destinoRuta = null,
@@ -256,7 +314,8 @@ const Mapa = ({
 }) => {
     const [ubicacionUsuario, setUbicacionUsuario] = useState(null);
     const { viajeActivo, ubicacionPropietario } = useSeguimiento();
-    const mapRef = useRef();
+
+    // 👈 CAMBIO: Ya no usamos mapRef, el useMap() lo maneja el wrapper
 
     // Obtener ubicación del usuario si se solicita
     useEffect(() => {
@@ -275,14 +334,12 @@ const Mapa = ({
         }
     }, [mostrarUbicacion]);
 
-    // Función para obtener color según disponibilidad
     const getMarkerColor = (disponible, espacios) => {
-        if (!disponible) return '#F44336'; // Rojo
-        if (espacios < 5) return '#FF9800'; // Naranja
-        return '#4CAF50'; // Verde
+        if (!disponible) return '#F44336';
+        if (espacios < 5) return '#FF9800';
+        return '#4CAF50';
     };
 
-    // Crear icono personalizado con color
     const createColoredIcon = (color) => {
         return L.divIcon({
             className: 'custom-marker',
@@ -302,7 +359,6 @@ const Mapa = ({
         });
     };
 
-    // Coordenadas de ciudades principales
     const coordenadasCiudades = {
         'Bogotá': [4.60971, -74.08175],
         'Medellín': [6.2442, -75.5812],
@@ -321,7 +377,6 @@ const Mapa = ({
         'Neiva': [2.9273, -75.2819]
     };
 
-    // Determinar centro del mapa
     const determinarCentro = () => {
         if (mostrarRuta && origenRuta) return origenRuta;
         if (modo === 'seguimiento' && ubicacionPropietario) return ubicacionPropietario;
@@ -338,37 +393,37 @@ const Mapa = ({
             center={centroMapa}
             zoom={mostrarRuta ? 14 : (modo === 'seguimiento' ? 16 : zoom)}
             style={{ height: '500px', width: '100%', borderRadius: '10px' }}
-            ref={mapRef}
         >
             <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             />
-            
+
             {/* Centrar mapa en ubicación del usuario si está disponible */}
-            {ubicacionUsuario && !mostrarRuta && modo !== 'seguimiento' && <CentrarMapa posicion={ubicacionUsuario} />}
-            
+            {ubicacionUsuario && !mostrarRuta && modo !== 'seguimiento' && (
+                <CentrarMapa posicion={ubicacionUsuario} />
+            )}
+
             {/* Mostrar marcador de ubicación del usuario */}
             {ubicacionUsuario && <UbicacionUsuario posicion={ubicacionUsuario} />}
-            
-            {/* Mostrar ruta si está activa (con seguimiento en tiempo real) */}
+
+            {/* 👈 CAMBIO CLAVE: Wrapper con useMap en vez de mapRef */}
             {mostrarRuta && origenRuta && destinoRuta && (
-                <SeguimientoRuta
-                    map={mapRef.current}
+                <SeguimientoRutaWrapper
                     origenInicial={origenRuta}
                     destino={destinoRuta}
                     onCerrar={onCerrarRuta}
                 />
             )}
-            
+
             {/* Mostrar seguimiento de propietario si está activo */}
             {modo === 'seguimiento' && viajeActivo && ubicacionPropietario && (
-                <SeguimientoPropietario 
+                <SeguimientoPropietario
                     viajeActivo={viajeActivo}
                     ubicacionPropietario={ubicacionPropietario}
                 />
             )}
-            
+
             {/* Mostrar parqueaderos solo si no hay ruta activa */}
             {!mostrarRuta && parqueaderos?.map((p) => (
                 <Marker
@@ -379,8 +434,8 @@ const Mapa = ({
                     <Popup>
                         <div style={{ minWidth: '220px', fontFamily: 'Arial' }}>
                             {p.fotos?.length > 0 && (
-                                <img 
-                                    src={p.fotos[0]} 
+                                <img
+                                    src={p.fotos[0]}
                                     alt={p.nombre}
                                     style={{
                                         width: '100%',
@@ -391,25 +446,21 @@ const Mapa = ({
                                     }}
                                 />
                             )}
-                            
-                            <h3 style={{ 
-                                margin: '0 0 5px 0', 
-                                color: '#2C3E50',
-                                fontSize: '1.1rem'
-                            }}>
+
+                            <h3 style={{ margin: '0 0 5px 0', color: '#2C3E50', fontSize: '1.1rem' }}>
                                 {p.nombre}
                             </h3>
-                            
+
                             <p style={{ margin: '5px 0', fontSize: '0.9rem' }}>
                                 <strong>📍 Dirección:</strong> {p.direccion}
                             </p>
-                            
+
                             <p style={{ margin: '5px 0', fontSize: '0.9rem' }}>
                                 <strong>💰 Precio:</strong> ${p.precio}/h
                             </p>
-                            
+
                             <p style={{ margin: '5px 0', fontSize: '0.9rem' }}>
-                                <strong>📊 Disponibilidad:</strong><br/>
+                                <strong>📊 Disponibilidad:</strong><br />
                                 {p.disponible ? (
                                     <span style={{ color: p.espacios < 5 ? '#FF9800' : '#4CAF50' }}>
                                         🟢 {p.espacios} espacios
@@ -418,12 +469,8 @@ const Mapa = ({
                                     <span style={{ color: '#F44336' }}>🔴 Lleno</span>
                                 )}
                             </p>
-                            
-                            <div style={{ 
-                                display: 'flex', 
-                                gap: '5px', 
-                                marginTop: '10px' 
-                            }}>
+
+                            <div style={{ display: 'flex', gap: '5px', marginTop: '10px' }}>
                                 <button
                                     onClick={() => window.open(`/parqueadero/${p._id || p.id}`)}
                                     style={{
@@ -441,10 +488,7 @@ const Mapa = ({
                                 </button>
                                 <button
                                     onClick={() => {
-                                        if (onCerrarRuta) {
-                                            // Esto activará la ruta en el componente padre
-                                            window.location.href = `/buscar?destinoLat=${p.lat}&destinoLng=${p.lng}&destinoNombre=${encodeURIComponent(p.nombre)}`;
-                                        }
+                                        window.location.href = `/buscar?destinoLat=${p.lat}&destinoLng=${p.lng}&destinoNombre=${encodeURIComponent(p.nombre)}`;
                                     }}
                                     style={{
                                         flex: 1,
