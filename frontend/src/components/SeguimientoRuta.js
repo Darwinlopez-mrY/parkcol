@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import 'leaflet-routing-machine';
@@ -11,7 +11,52 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
     const markerUbicacionRef = useRef(null);
     const montadoRef = useRef(true);
 
-    // Verificar que el mapa esté listo
+    // ============================
+    // Utilidad: calcular distancia (Haversine)
+    // ============================
+    const calcularDistancia = useCallback((lat1, lon1, lat2, lon2) => {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    }, []);
+
+    // ============================
+    // Actualizar ruta con nueva ubicación
+    // ============================
+    const actualizarRuta = useCallback((nuevaUbicacion) => {
+        if (!routingControlRef.current || !map || !map._container) return;
+        if (!montadoRef.current) return;
+
+        try {
+            routingControlRef.current.setWaypoints([
+                L.latLng(nuevaUbicacion[0], nuevaUbicacion[1]),
+                L.latLng(destino[0], destino[1])
+            ]);
+
+            if (markerUbicacionRef.current && markerUbicacionRef.current._map) {
+                markerUbicacionRef.current.setLatLng(nuevaUbicacion);
+            }
+
+            const distancia = calcularDistancia(
+                nuevaUbicacion[0], nuevaUbicacion[1],
+                destino[0], destino[1]
+            );
+            setDistanciaRestante(distancia.toFixed(1));
+            setTiempoRestante(Math.round((distancia / 30) * 60));
+        } catch (error) {
+            console.warn('Error actualizando ruta:', error);
+        }
+    }, [map, destino, calcularDistancia]);
+
+    // ============================
+    // Esperar a que el mapa esté listo
+    // ============================
     useEffect(() => {
         if (map) {
             const timer = setTimeout(() => {
@@ -21,7 +66,9 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
         }
     }, [map]);
 
-    // Cleanup: marcar desmontaje
+    // ============================
+    // Marcar desmontaje
+    // ============================
     useEffect(() => {
         montadoRef.current = true;
         return () => {
@@ -29,7 +76,9 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
         };
     }, []);
 
+    // ============================
     // Iniciar seguimiento de ubicación
+    // ============================
     useEffect(() => {
         if (!mapaListo) return;
 
@@ -64,9 +113,11 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
                 navigator.geolocation.clearWatch(id);
             }
         };
-    }, [mapaListo]);
+    }, [mapaListo, actualizarRuta]);
 
+    // ============================
     // Crear ruta inicial
+    // ============================
     useEffect(() => {
         if (!mapaListo || !map || !origenInicial || !destino) return;
 
@@ -176,45 +227,9 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
         };
     }, [mapaListo, map, origenInicial, destino]);
 
-    // Actualizar ruta con nueva ubicación
-    const actualizarRuta = (nuevaUbicacion) => {
-        if (!routingControlRef.current || !map || !map._container) return;
-        if (!montadoRef.current) return;
-
-        try {
-            routingControlRef.current.setWaypoints([
-                L.latLng(nuevaUbicacion[0], nuevaUbicacion[1]),
-                L.latLng(destino[0], destino[1])
-            ]);
-
-            if (markerUbicacionRef.current && markerUbicacionRef.current._map) {
-                markerUbicacionRef.current.setLatLng(nuevaUbicacion);
-            }
-
-            const distancia = calcularDistancia(
-                nuevaUbicacion[0], nuevaUbicacion[1],
-                destino[0], destino[1]
-            );
-            setDistanciaRestante(distancia.toFixed(1));
-            setTiempoRestante(Math.round((distancia / 30) * 60));
-        } catch (error) {
-            console.warn('Error actualizando ruta:', error);
-        }
-    };
-
-    const calcularDistancia = (lat1, lon1, lat2, lon2) => {
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
-    };
-
+    // ============================
     // Estilos de animación
+    // ============================
     useEffect(() => {
         const style = document.createElement('style');
         style.innerHTML = `
@@ -230,6 +245,9 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
         };
     }, []);
 
+    // ============================
+    // RENDER
+    // ============================
     return (
         <div style={{
             position: 'absolute',
