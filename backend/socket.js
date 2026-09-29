@@ -7,12 +7,48 @@ const viajesActivos = new Map(); // viajeId -> { usuario, propietario, origen, d
 let io;
 
 const initSocket = (server) => {
+    // ========================================
+    // CORS para Socket.io (mismos origins que server.js)
+    // ========================================
+    const allowedOrigins = [
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://127.0.0.1:3000',
+        // Patrones regex para producción
+        /^https:\/\/.*\.vercel\.app$/,
+        /^https:\/\/.*\.onrender\.com$/,
+        // Dominios custom (agrega los tuyos aquí)
+        // 'https://parkcol.com',
+        // 'https://www.parkcol.com',
+    ];
+
+    // Dominios custom desde variable de entorno
+    if (process.env.CORS_ORIGINS) {
+        const extras = process.env.CORS_ORIGINS.split(',').map(s => s.trim());
+        allowedOrigins.push(...extras);
+    }
+
     io = socketIo(server, {
         cors: {
-            origin: process.env.NODE_ENV === 'production' 
-                ? ['https://parkcol.vercel.app', 'http://localhost:3000']
-                : 'http://localhost:3000',
-            credentials: true
+            origin: function (origin, callback) {
+                // Permitir sin origin (Postman, apps móviles)
+                if (!origin) return callback(null, true);
+
+                const permitido = allowedOrigins.some(allowed => {
+                    if (typeof allowed === 'string') return allowed === origin;
+                    if (allowed instanceof RegExp) return allowed.test(origin);
+                    return false;
+                });
+
+                if (permitido) {
+                    callback(null, true);
+                } else {
+                    console.warn(`🚫 Socket.io CORS bloqueado para: ${origin}`);
+                    callback(new Error('No permitido por CORS'));
+                }
+            },
+            credentials: true,
+            methods: ['GET', 'POST']
         }
     });
 
