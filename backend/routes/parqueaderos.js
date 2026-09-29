@@ -31,22 +31,6 @@ router.get('/', async (req, res) => {
     }
 });
 
-// GET parqueadero por ID
-router.get('/:id', async (req, res) => {
-    try {
-        const parqueadero = await Parqueadero.findById(req.params.id);
-        
-        if (!parqueadero) {
-            return res.status(404).json({ mensaje: 'Parqueadero no encontrado' });
-        }
-        
-        res.json(parqueadero);
-    } catch (error) {
-        console.error('Error:', error);
-        res.status(500).json({ mensaje: 'Error al obtener parqueadero' });
-    }
-});
-
 // GET cerca de mi ubicación
 router.get('/cerca', async (req, res) => {
     try {
@@ -77,6 +61,22 @@ router.get('/cerca', async (req, res) => {
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ mensaje: 'Error al buscar parqueaderos cercanos' });
+    }
+});
+
+// GET parqueadero por ID
+router.get('/:id', async (req, res) => {
+    try {
+        const parqueadero = await Parqueadero.findById(req.params.id);
+        
+        if (!parqueadero) {
+            return res.status(404).json({ mensaje: 'Parqueadero no encontrado' });
+        }
+        
+        res.json(parqueadero);
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ mensaje: 'Error al obtener parqueadero' });
     }
 });
 
