@@ -110,6 +110,9 @@ const Buscar = () => {
                     case error.TIMEOUT:
                         mensaje = 'Tiempo de espera agotado.';
                         break;
+                    default:
+                        mensaje = 'Error desconocido al obtener la ubicación';
+                        break;
                 }
                 alert(mensaje);
                 setCargando(false);
