@@ -51,27 +51,13 @@ const ParqueaderoSchema = new mongoose.Schema({
         type: Number,
         required: [true, 'La latitud es obligatoria'],
         min: [-90, 'La latitud debe estar entre -90 y 90'],
-        max: [90, 'La latitud debe estar entre -90 y 90'],
-        validate: {
-            validator: function(v) {
-                // Colombia está aproximadamente entre lat -5 y 15
-                return v >= -5 && v <= 15;
-            },
-            message: 'La latitud debe estar dentro del rango de Colombia (aprox. -5 a 15)'
-        }
+        max: [90, 'La latitud debe estar entre -90 y 90']
     },
     lng: {
         type: Number,
         required: [true, 'La longitud es obligatoria'],
         min: [-180, 'La longitud debe estar entre -180 y 180'],
-        max: [180, 'La longitud debe estar entre -180 y 180'],
-        validate: {
-            validator: function(v) {
-                // Colombia está aproximadamente entre lng -85 y -65
-                return v >= -85 && v <= -65;
-            },
-            message: 'La longitud debe estar dentro del rango de Colombia (aprox. -85 a -65)'
-        }
+        max: [180, 'La longitud debe estar entre -180 y 180']
     },
     telefono: {
         type: String,
