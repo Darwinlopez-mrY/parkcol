@@ -15,11 +15,18 @@ import DashboardPropietario from './pages/propietario/Dashboard';
 import FormularioParqueadero from './pages/propietario/FormularioParqueadero';
 import FotosParqueadero from './pages/propietario/FotosParqueadero';
 
+// 👇 NUEVO: Componentes de admin
+import RutaAdmin from './components/RutaAdmin';
+import AdminLayout from './pages/admin/AdminLayout';
+import AdminDashboard from './pages/admin/Dashboard';
+import AdminUsuarios from './pages/admin/Usuarios';
+import AdminParqueaderos from './pages/admin/Parqueaderos';
+import AdminFotosParqueadero from './pages/admin/FotosParqueaderoAdmin';
+
 function App() {
     return (
         <BrowserRouter>
             <AuthProvider>
-                {/* 👇 NUEVO: Provider de seguimiento envuelve toda la app */}
                 <SeguimientoProvider>
                     <div style={styles.app}>
                         <Header />
@@ -56,11 +63,25 @@ function App() {
                                         <FotosParqueadero />
                                     </RutaProtegida>
                                 } />
+
+                                {/* ============================================ */}
+                                {/* RUTAS DE ADMINISTRADOR (protegidas)         */}
+                                {/* ============================================ */}
+                                <Route path="/admin" element={
+                                    <RutaAdmin>
+                                        <AdminLayout />
+                                    </RutaAdmin>
+                                }>
+                                    <Route index element={<AdminDashboard />} />
+                                    <Route path="usuarios" element={<AdminUsuarios />} />   
+                                    <Route path="parqueaderos" element={<AdminParqueaderos />} />
+                                    <Route path="parqueaderos/:id/fotos" element={<AdminFotosParqueadero />} />
+                                    {/* Aquí irán más subrutas después: usuarios, parqueaderos */}
+                                </Route>
                             </Routes>
                         </main>
                     </div>
                 </SeguimientoProvider>
-                {/* 👆 NUEVO */}
             </AuthProvider>
         </BrowserRouter>
     );

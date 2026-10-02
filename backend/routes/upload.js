@@ -2,12 +2,41 @@ const express = require('express');
 const router = express.Router();
 const { upload } = require('../config/cloudinary');
 const Parqueadero = require('../models/Parqueadero');
+const Usuario = require('../models/Usuario');
 const { verificarToken, esPropietario } = require('../middleware/auth');
 
-// Subir foto a un parqueadero
-router.post('/parqueadero/:id', 
-    verificarToken, 
-    esPropietario, 
+// ========================================
+// HELPER: Verificar que el usuario NO esté baneado
+// ========================================
+const verificarNoBaneado = async (req, res, next) => {
+    try {
+        const usuario = await Usuario.findById(req.usuario.id);
+        
+        if (!usuario) {
+            return res.status(401).json({ mensaje: 'Usuario no encontrado' });
+        }
+        
+        if (usuario.estaBaneado()) {
+            return res.status(403).json({ 
+                mensaje: 'Tu cuenta está suspendida. No puedes subir fotos.',
+                banReason: usuario.bannedReason
+            });
+        }
+        
+        next();
+    } catch (error) {
+        console.error('Error verificando ban:', error);
+        res.status(500).json({ mensaje: 'Error interno' });
+    }
+};
+
+// ========================================
+// POST Subir foto a un parqueadero
+// ========================================
+router.post('/parqueadero/:id',
+    verificarToken,
+    esPropietario,
+    verificarNoBaneado,  // 👈 NUEVO: rechaza si está baneado
     upload.single('foto'),
     async (req, res) => {
         try {
@@ -37,10 +66,13 @@ router.post('/parqueadero/:id',
     }
 );
 
-// Eliminar foto
-router.delete('/parqueadero/:id/foto', 
-    verificarToken, 
-    esPropietario, 
+// ========================================
+// DELETE Eliminar foto
+// ========================================
+router.delete('/parqueadero/:id/foto',
+    verificarToken,
+    esPropietario,
+    verificarNoBaneado,  // 👈 NUEVO: rechaza si está baneado
     async (req, res) => {
         try {
             const { fotoUrl } = req.body;

@@ -7,6 +7,7 @@ export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
     const [usuario, setUsuario] = useState(null);
+    const [cargando, setCargando] = useState(true); // 👈 NUEVO: estado de carga inicial
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -14,8 +15,16 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const usuarioGuardado = localStorage.getItem('usuario');
         if (usuarioGuardado) {
-            setUsuario(JSON.parse(usuarioGuardado));
+            try {
+                setUsuario(JSON.parse(usuarioGuardado));
+            } catch (e) {
+                // Si el localStorage está corrupto, limpiar
+                localStorage.removeItem('usuario');
+                localStorage.removeItem('token');
+            }
         }
+        // 👈 Importante: marcar como terminado DESPUÉS de cargar
+        setCargando(false);
     }, []);
 
     // Registrar
@@ -64,6 +73,7 @@ export const AuthProvider = ({ children }) => {
     return (
         <AuthContext.Provider value={{
             usuario,
+            cargando,  // 👈 NUEVO: exponer el estado
             loading,
             error,
             registro,

@@ -9,22 +9,8 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
     const [mapaListo, setMapaListo] = useState(false);
     const routingControlRef = useRef(null);
     const markerUbicacionRef = useRef(null);
+    const markerDestinoRef = useRef(null);
     const montadoRef = useRef(true);
-
-    // ============================
-    // Utilidad: calcular distancia (Haversine)
-    // ============================
-    const calcularDistancia = useCallback((lat1, lon1, lat2, lon2) => {
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
-    }, []);
 
     // ============================
     // Actualizar ruta con nueva ubicación
@@ -43,16 +29,18 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
                 markerUbicacionRef.current.setLatLng(nuevaUbicacion);
             }
 
-            const distancia = calcularDistancia(
-                nuevaUbicacion[0], nuevaUbicacion[1],
-                destino[0], destino[1]
-            );
-            setDistanciaRestante(distancia.toFixed(1));
-            setTiempoRestante(Math.round((distancia / 30) * 60));
+            // Centrar el mapa en la nueva ubicación del usuario
+            try {
+                map.setView(nuevaUbicacion, 15);
+            } catch (err) {
+                console.warn('Error centering on new location:', err);
+            }
+            // 👆 Ya NO calculamos Haversine.
+            // El nuevo cálculo vendrá de OSRM cuando responda.
         } catch (error) {
             console.warn('Error actualizando ruta:', error);
         }
-    }, [map, destino, calcularDistancia]);
+    }, [map, destino]);
 
     // ============================
     // Esperar a que el mapa esté listo
@@ -77,7 +65,7 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
     }, []);
 
     // ============================
-    // Iniciar seguimiento de ubicación
+    // Iniciar seguimiento de ubicación (watchPosition)
     // ============================
     useEffect(() => {
         if (!mapaListo) return;
@@ -116,7 +104,7 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
     }, [mapaListo, actualizarRuta]);
 
     // ============================
-    // Crear ruta inicial
+    // Crear ruta inicial (SOLO OSRM)
     // ============================
     useEffect(() => {
         if (!mapaListo || !map || !origenInicial || !destino) return;
@@ -132,6 +120,13 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
         }
 
         if (!map._container) return;
+
+        // Centrar el mapa en la ubicación del usuario
+        try {
+            map.setView(origenInicial, 15);
+        } catch (e) {
+            console.warn('Error centering map initially:', e);
+        }
 
         // Crear control de ruta
         let routingControl;
@@ -151,7 +146,7 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
                 show: false,
                 addWaypoints: false,
                 draggableWaypoints: false,
-                fitSelectedRoutes: true,
+                fitSelectedRoutes: false,
                 language: 'es',
                 createMarker: () => null,
                 router: L.Routing.osrmv1({
@@ -159,6 +154,9 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
                 })
             }).addTo(map);
 
+            // ============================
+            // 👇 ÚNICA FUENTE DE VERDAD: OSRM
+            // ============================
             routingControl.on('routesfound', (e) => {
                 if (!montadoRef.current) return;
                 const routes = e.routes;
@@ -176,6 +174,13 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
                     console.warn('Error bringing line to front:', err);
                 }
             });
+
+            // Manejo de errores de OSRM (solo log, sin fallback)
+            routingControl.on('routingerror', (err) => {
+                console.warn('❌ OSRM error:', err);
+                // NO fallback: si OSRM falla, se queda en "Calculando..."
+            });
+
         } catch (e) {
             console.warn('Error creating routing control:', e);
             return;
@@ -183,7 +188,9 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
 
         routingControlRef.current = routingControl;
 
+        // ============================
         // Marcar ubicación actual como marcador azul
+        // ============================
         try {
             const iconoMovimiento = L.divIcon({
                 className: 'ubicacion-movimiento',
@@ -207,6 +214,54 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
             console.warn('Error creating location marker:', e);
         }
 
+        // ============================
+        // Marcar el destino con un pin rojo
+        // ============================
+        try {
+            const iconoDestino = L.divIcon({
+                className: 'destino-marker',
+                html: `<div style="
+                    position: relative;
+                    width: 40px;
+                    height: 40px;
+                ">
+                    <div style="
+                        background-color: #1e0efd;
+                        width: 30px;
+                        height: 30px;
+                        border-radius: 50% 50% 50% 0;
+                        transform: rotate(-45deg);
+                        border: 3px solid white;
+                        box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+                        position: absolute;
+                        top: 0;
+                        left: 5px;
+                    "></div>
+                    <div style="
+                        position: absolute;
+                        top: 8px;
+                        left: 13px;
+                        font-size: 16px;
+                        z-index: 2;
+                    ">🏁</div>
+                </div>`,
+                iconSize: [40, 40],
+                iconAnchor: [20, 40],
+                popupAnchor: [0, -40]
+            });
+
+            const markerDestino = L.marker(destino, { icon: iconoDestino }).addTo(map);
+            markerDestino.bindPopup(`
+                <div style="text-align: center; font-family: Arial;">
+                    <strong style="color: #200ee6; font-size: 1rem;">🏁 Destino</strong>
+                    <p style="margin: 5px 0; font-size: 0.9rem;">Has llegado a tu destino</p>
+                </div>
+            `);
+            markerDestinoRef.current = markerDestino;
+        } catch (e) {
+            console.warn('Error creating destination marker:', e);
+        }
+
         return () => {
             if (routingControlRef.current && map && map.removeControl) {
                 try {
@@ -224,7 +279,16 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
                     console.warn('Error cleaning up marker:', e);
                 }
             }
+            if (markerDestinoRef.current && map && map.removeLayer) {
+                try {
+                    map.removeLayer(markerDestinoRef.current);
+                    markerDestinoRef.current = null;
+                } catch (e) {
+                    console.warn('Error cleaning up destination marker:', e);
+                }
+            }
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mapaListo, map, origenInicial, destino]);
 
     // ============================
@@ -278,10 +342,16 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
 
             <div style={{ marginBottom: '15px' }}>
                 <p style={{ margin: '5px 0' }}>
-                    <strong>📍 Distancia restante:</strong> {distanciaRestante || '...'} km
+                    <strong>📍 Distancia restante:</strong>{' '}
+                    {distanciaRestante !== null && distanciaRestante !== undefined
+                        ? `${distanciaRestante} km`
+                        : 'Calculando con OSRM...'}
                 </p>
                 <p style={{ margin: '5px 0' }}>
-                    <strong>⏱️ Tiempo estimado:</strong> {tiempoRestante || '...'} min
+                    <strong>⏱️ Tiempo estimado:</strong>{' '}
+                    {tiempoRestante !== null && tiempoRestante !== undefined
+                        ? `${tiempoRestante} min`
+                        : 'Calculando con OSRM...'}
                 </p>
             </div>
 
@@ -321,7 +391,7 @@ const SeguimientoRuta = ({ map, origenInicial, destino, onCerrar }) => {
                     fontWeight: 'bold'
                 }}
             >
-                Recalcular ruta
+                🔄 Recalcular ruta
             </button>
         </div>
     );

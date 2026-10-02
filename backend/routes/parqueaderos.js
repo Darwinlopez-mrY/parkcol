@@ -1,12 +1,49 @@
 const express = require('express');
 const router = express.Router();
 const Parqueadero = require('../models/Parqueadero');
+const Usuario = require('../models/Usuario');
 
+// ========================================
+// HELPER: Obtener IDs de usuarios baneados
+// ========================================
+// Devuelve un array con los _id de usuarios baneados
+// (considerando si el ban expiró o no)
+// ========================================
+const obtenerIdsUsuariosBaneados = async () => {
+    try {
+        const ahora = new Date();
+        
+        // Usuarios baneados que:
+        // 1. banned = true
+        // 2. Y (bannedUntil es null → ban permanente) O (bannedUntil > ahora → ban vigente)
+        const usuariosBaneados = await Usuario.find({
+            banned: true,
+            $or: [
+                { bannedUntil: null },
+                { bannedUntil: { $gt: ahora } }
+            ]
+        }).select('_id');
+        
+        return usuariosBaneados.map(u => u._id);
+    } catch (error) {
+        console.error('Error al obtener usuarios baneados:', error);
+        return [];
+    }
+};
+
+// ========================================
 // GET todos los parqueaderos con filtros
+// ========================================
 router.get('/', async (req, res) => {
     try {
         const { ciudad, q, disponible } = req.query;
         let filtro = {};
+
+        // 🚫 Excluir parqueaderos de usuarios baneados
+        const idsBaneados = await obtenerIdsUsuariosBaneados();
+        if (idsBaneados.length > 0) {
+            filtro.propietario_id = { $nin: idsBaneados };
+        }
 
         if (ciudad) {
             filtro.ciudad = { $regex: ciudad, $options: 'i' };
@@ -31,25 +68,32 @@ router.get('/', async (req, res) => {
     }
 });
 
+// ========================================
 // GET cerca de mi ubicación
+// ========================================
 router.get('/cerca', async (req, res) => {
     try {
-        const { lat, lng, radio = 2000 } = req.query; // radio en metros
-        
+        const { lat, lng, radio = 2000 } = req.query;
+
         if (!lat || !lng) {
             return res.status(400).json({ mensaje: 'Latitud y longitud requeridas' });
         }
 
-        // Obtener todos los parqueaderos y calcular distancia (simplificado)
-        const parqueaderos = await Parqueadero.find({ disponible: true });
-        
+        // 🚫 Excluir parqueaderos de usuarios baneados
+        const idsBaneados = await obtenerIdsUsuariosBaneados();
+        const filtro = { disponible: true };
+        if (idsBaneados.length > 0) {
+            filtro.propietario_id = { $nin: idsBaneados };
+        }
+
+        const parqueaderos = await Parqueadero.find(filtro);
+
         const resultados = parqueaderos.map(p => {
-            // Fórmula de distancia (simplificada)
             const distancia = Math.sqrt(
-                Math.pow(p.lat - parseFloat(lat), 2) + 
+                Math.pow(p.lat - parseFloat(lat), 2) +
                 Math.pow(p.lng - parseFloat(lng), 2)
-            ) * 111000; // Aproximación a metros
-            
+            ) * 111000;
+
             return {
                 ...p.toObject(),
                 distancia: Math.round(distancia) + 'm'
@@ -64,15 +108,27 @@ router.get('/cerca', async (req, res) => {
     }
 });
 
+// ========================================
 // GET parqueadero por ID
+// ========================================
 router.get('/:id', async (req, res) => {
     try {
         const parqueadero = await Parqueadero.findById(req.params.id);
-        
+
         if (!parqueadero) {
             return res.status(404).json({ mensaje: 'Parqueadero no encontrado' });
         }
-        
+
+        // 🚫 Verificar si el propietario está baneado
+        if (parqueadero.propietario_id) {
+            const propietario = await Usuario.findById(parqueadero.propietario_id);
+            if (propietario && propietario.estaBaneado()) {
+                return res.status(404).json({ 
+                    mensaje: 'Este parqueadero no está disponible temporalmente' 
+                });
+            }
+        }
+
         res.json(parqueadero);
     } catch (error) {
         console.error('Error:', error);
@@ -80,7 +136,9 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// POST crear nuevo parqueadero (para propietarios)
+// ========================================
+// POST crear nuevo parqueadero
+// ========================================
 router.post('/', async (req, res) => {
     try {
         const nuevoParqueadero = new Parqueadero(req.body);
@@ -92,7 +150,9 @@ router.post('/', async (req, res) => {
     }
 });
 
+// ========================================
 // PUT actualizar parqueadero
+// ========================================
 router.put('/:id', async (req, res) => {
     try {
         const parqueadero = await Parqueadero.findByIdAndUpdate(
@@ -107,7 +167,9 @@ router.put('/:id', async (req, res) => {
     }
 });
 
+// ========================================
 // DELETE eliminar parqueadero (solo admin)
+// ========================================
 router.delete('/:id', async (req, res) => {
     try {
         await Parqueadero.findByIdAndDelete(req.params.id);

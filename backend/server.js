@@ -105,6 +105,7 @@ app.use('/api/usuarios', require('./routes/usuarios'));
 app.use('/api/parqueaderos', require('./routes/parqueaderos'));
 app.use('/api/propietario', require('./routes/propietario'));
 app.use('/api/upload', require('./routes/upload'));
+app.use('/api/admin', require('./routes/admin'));
 
 // Ruta raíz para health check
 app.get('/', (req, res) => {

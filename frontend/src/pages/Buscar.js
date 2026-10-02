@@ -63,7 +63,6 @@ const Buscar = () => {
 
     // Función para activar seguimiento de ruta
     const activarSeguimientoRuta = useCallback((destinoLat, destinoLng) => {
-        console.log('🎯 1. activarSeguimientoRuta:', { destinoLat, destinoLng });
         
         if (!navigator.geolocation) {
             alert('Tu navegador no soporta geolocalización');
@@ -75,13 +74,11 @@ const Buscar = () => {
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const { latitude: lat, longitude: lng } = position.coords;
-                console.log('🎯 2. Ubicación obtenida:', { lat, lng });
                 
                 setUbicacionUsuario({ lat, lng });
                 
                 const origen = [lat, lng];
                 const destino = [parseFloat(destinoLat), parseFloat(destinoLng)];
-                console.log('🎯 3. Seteando estados:', { origen, destino });
                 
                 setOrigenRuta(origen);
                 setDestinoRuta(destino);
@@ -89,7 +86,7 @@ const Buscar = () => {
                 setVista('mapa');
                 setCargando(false);
                 
-                console.log('🎯 4. Estados seteados OK');
+                
                 
                 if (destinoNombre) {
                     setTimeout(() => {
@@ -129,7 +126,7 @@ const Buscar = () => {
     useEffect(() => {
         if (destinoLat && destinoLng && !rutaActivadaRef.current) {
             rutaActivadaRef.current = true;
-            console.log('🎯 Efecto de ruta disparado con:', { destinoLat, destinoLng, destinoNombre });
+            
             activarSeguimientoRuta(destinoLat, destinoLng);
         }
     }, [destinoLat, destinoLng, destinoNombre, activarSeguimientoRuta]);
@@ -257,8 +254,6 @@ const Buscar = () => {
     const renderVistaMapa = () => {
         const centroMapa = obtenerCentroMapa();
         
-        console.log('🎯 5. renderVistaMapa:', { mostrarRuta, origenRuta, destinoRuta, centroMapa });
-
         return (
             <div style={styles.mapaContainer}>
                 <Mapa
@@ -314,14 +309,20 @@ const Buscar = () => {
                 </div>
             )}
 
-            <p style={styles.resultCount}>
-                {resultados.length} parqueadero{resultados.length !== 1 ? 's' : ''} encontrado{resultados.length !== 1 ? 's' : ''}
-            </p>
-
+            {/* Contador + Loading + Contenido */}
             {cargando ? (
-                <div style={styles.loading}>Buscando parqueaderos...</div>
+                <div style={styles.loading}>🔍 Buscando parqueaderos...</div>
             ) : (
                 <>
+                    <p style={styles.resultCount}>
+                        {resultados.length === 0 
+                            ? 'No se encontraron parqueaderos'
+                            : resultados.length === 1
+                                ? '1 parqueadero encontrado'
+                                : `${resultados.length} parqueaderos encontrados`
+                        }
+                    </p>
+                    
                     {vista === 'lista' && renderVistaLista()}
                     {vista === 'mapa' && renderVistaMapa()}
                 </>

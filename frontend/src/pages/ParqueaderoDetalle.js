@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSeguimiento } from '../context/SeguimientoContext';
 import API from '../services/api';
@@ -8,6 +8,7 @@ import SolicitarViaje from '../components/SolicitarViaje';
 const ParqueaderoDetalle = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const { usuario } = useAuth();
     const { viajeActivo } = useSeguimiento();
     const [parqueadero, setParqueadero] = useState(null);
@@ -60,7 +61,23 @@ const ParqueaderoDetalle = () => {
         <div style={styles.container}>
             {/* Encabezado con botón volver */}
             <div style={styles.header}>
-                <button onClick={() => navigate(-1)} style={styles.backButton}>
+                <button 
+                    onClick={() => {
+                        // Si el admin pasó un destino específico, ir ahí
+                        if (location.state?.volverA) {
+                            navigate(location.state.volverA);
+                            return;
+                        }
+                        // Si hay historial, volver
+                        if (window.history.length > 1) {
+                            navigate(-1);
+                            return;
+                        }
+                        // Fallback
+                        navigate('/');
+                    }} 
+                    style={styles.backButton}
+                >
                     ← Volver
                 </button>
                 <h1 style={styles.title}>{parqueadero.nombre}</h1>

@@ -2,33 +2,38 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const RutaProtegida = ({ children, rol }) => {
-    const { usuario, cargando } = useAuth();
+const RutaAdmin = ({ children }) => {
+    const { usuario, cargando } = useAuth(); // 👈 Incluir 'cargando'
 
-    // 👈 Mientras carga, mostrar spinner
+    // 👈 Mientras se recupera el usuario del localStorage, mostrar spinner
     if (cargando) {
         return (
             <div style={{
                 display: 'flex',
+                flexDirection: 'column',
                 justifyContent: 'center',
                 alignItems: 'center',
                 minHeight: '60vh',
                 color: '#666'
             }}>
-                ⏳ Cargando...
+                <div style={{ fontSize: '2rem', marginBottom: '15px' }}>⏳</div>
+                <p>Cargando...</p>
             </div>
         );
     }
 
+    // Si no hay usuario → login
     if (!usuario) {
         return <Navigate to="/login" replace />;
     }
 
-    if (rol && usuario.rol !== rol) {
+    // Si no es admin → inicio
+    if (usuario.rol !== 'admin') {
         return <Navigate to="/" replace />;
     }
 
+    // Es admin → renderiza el contenido
     return children;
 };
 
-export default RutaProtegida;
+export default RutaAdmin;

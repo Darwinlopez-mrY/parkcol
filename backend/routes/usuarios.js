@@ -61,9 +61,21 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ mensaje: 'Credenciales inválidas' });
         }
         
-        const passwordValida = usuario.compararPassword(password);
+        const passwordValida = await usuario.compararPassword(password);
         if (!passwordValida) {
             return res.status(401).json({ mensaje: 'Credenciales inválidas' });
+        }
+
+        // ========================================
+        // VERIFICAR SI ESTÁ BANEADO (antes de dar token)
+        // ========================================
+        if (usuario.estaBaneado()) {
+            return res.status(403).json({ 
+                mensaje: 'Tu cuenta ha sido suspendida.',
+                banReason: usuario.bannedReason || 'No especificado',
+                bannedUntil: usuario.bannedUntil, // null = permanente
+                esPermanente: !usuario.bannedUntil
+            });
         }
         
         const token = jwt.sign(
@@ -88,5 +100,4 @@ router.post('/login', async (req, res) => {
         res.status(500).json({ mensaje: error.message });
     }
 });
-
 module.exports = router;

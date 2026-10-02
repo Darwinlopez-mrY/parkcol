@@ -1,10 +1,16 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const Header = () => {
     const { usuario, logout } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
+
+    // 👈 No mostrar el header en las páginas admin (tienen su propio layout)
+    if (location.pathname.startsWith('/admin')) {
+        return null;
+    }
 
     const handleLogout = () => {
         logout();
@@ -17,16 +23,28 @@ const Header = () => {
                 <Link to="/" style={styles.logo}>
                     <span style={styles.logoIcon}>🚗</span> ParkCol
                 </Link>
-                
+
                 <nav style={styles.nav}>
                     {usuario ? (
                         <>
+                            {/* 👈 Solo propietarios ven este link */}
                             {usuario.rol === 'propietario' && (
                                 <Link to="/propietario" style={styles.link}>
                                     🏢 Mi negocio
                                 </Link>
                             )}
-                            <span style={styles.userName}>👤 {usuario.nombre}</span>
+
+                            {/* 👈 Solo admins ven este botón */}
+                            {usuario.rol === 'admin' && (
+                                <Link to="/admin" style={styles.adminBtn}>
+                                    🔧 Panel Admin
+                                </Link>
+                            )}
+
+                            <span style={styles.userName}>
+                                👤 {usuario.nombre}
+                            </span>
+
                             <button onClick={handleLogout} style={styles.logoutBtn}>
                                 Cerrar sesión
                             </button>
@@ -91,6 +109,17 @@ const styles = {
         borderRadius: '5px',
         fontWeight: 'bold',
         transition: 'background 0.3s'
+    },
+    // 👈 NUEVO: Estilos del botón admin
+    adminBtn: {
+        backgroundColor: '#9C27B0',
+        color: 'white',
+        textDecoration: 'none',
+        padding: '8px 20px',
+        borderRadius: '5px',
+        fontWeight: 'bold',
+        transition: 'background 0.3s',
+        boxShadow: '0 2px 6px rgba(156, 39, 176, 0.4)'
     },
     userName: {
         color: '#FF7E5F',

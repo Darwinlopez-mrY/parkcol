@@ -68,9 +68,8 @@ const SeguimientoRutaWrapper = ({ origenInicial, destino, onCerrar }) => {
 
     useEffect(() => {
         if (map) {
-            console.log('🗺️ Wrapper: map detectado, esperando 200ms...');
+            
             const timer = setTimeout(() => {
-                console.log('🗺️ Wrapper: seteando listo=true');
                 setListo(true);
             }, 200);
             return () => clearTimeout(timer);
@@ -81,7 +80,6 @@ const SeguimientoRutaWrapper = ({ origenInicial, destino, onCerrar }) => {
         return null;
     }
 
-    console.log('🗺️ Wrapper: renderizando SeguimientoRuta con map:', map);
     return (
         <SeguimientoRuta
             map={map}
@@ -328,7 +326,6 @@ const Mapa = ({
                     ]);
                 },
                 (error) => {
-                    console.log('Error obteniendo ubicación:', error);
                 }
             );
         }
