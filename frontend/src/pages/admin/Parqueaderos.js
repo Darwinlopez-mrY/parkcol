@@ -98,14 +98,6 @@ const Parqueaderos = () => {
         }).format(precio);
     };
 
-    const formatearFecha = (fecha) => {
-        if (!fecha) return 'N/A';
-        return new Date(fecha).toLocaleDateString('es-CO', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
-    };
 
     // ============ RENDER ============
 
